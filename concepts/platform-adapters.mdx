@@ -181,7 +181,7 @@ export { discordAdapter };
 When you call `createBot()`, the registry looks up the adapter:
 
 ```typescript
-import { createBot } from '@aarekaz/switchboard-core';
+import { createBot } from '@aarekaz/switchboard';
 import '@aarekaz/switchboard-discord';  // Registers the adapter
 
 const bot = createBot({ 
@@ -395,7 +395,7 @@ export { myPlatformAdapter };
 ### 4. Test your adapter
 
 ```typescript
-import { createBot } from '@aarekaz/switchboard-core';
+import { createBot } from '@aarekaz/switchboard';
 import '@my-org/switchboard-my-platform';
 
 const bot = createBot({

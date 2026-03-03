@@ -314,7 +314,7 @@ GOOGLE_CHAT_CREDENTIALS=path/to/credentials.json
 **Loading environment variables:**
 ```typescript
 import 'dotenv/config';
-import { createBot } from '@aarekaz/switchboard-core';
+import { createBot } from '@aarekaz/switchboard';
 import '@aarekaz/switchboard-discord';
 
 const bot = createBot({
@@ -334,7 +334,7 @@ Never commit your `.env` file to version control. Add it to `.gitignore` to keep
 Switchboard is built with TypeScript and provides full type safety for all configuration options. Your editor will provide autocomplete and type checking:
 
 ```typescript
-import { createBot, BotConfig } from '@aarekaz/switchboard-core';
+import { createBot, BotConfig } from '@aarekaz/switchboard';
 
 // TypeScript will validate this configuration
 const config: BotConfig = {

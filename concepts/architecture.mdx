@@ -47,7 +47,7 @@ Switchboard follows a four-layer architecture pattern inspired by the Vercel AI 
 The top layer provides the main developer interface through the `createBot()` function and the `Bot` class. This is what most developers will interact with:
 
 ```typescript
-import { createBot } from '@aarekaz/switchboard-core';
+import { createBot } from '@aarekaz/switchboard';
 import '@aarekaz/switchboard-discord';
 
 const bot = createBot({
@@ -222,7 +222,7 @@ export function createBot(config: BotConfig): Bot {
 Power users can also register adapters explicitly:
 
 ```typescript
-import { createBot } from '@aarekaz/switchboard-core';
+import { createBot } from '@aarekaz/switchboard';
 import { discordAdapter } from '@aarekaz/switchboard-discord';
 
 const bot = createBot({

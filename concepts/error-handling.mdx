@@ -124,7 +124,7 @@ bot.onMessage(async (ctx) => {
 Switchboard provides helper functions for creating Results:
 
 ```typescript
-import { ok, err, wrapAsync, isOk, isErr } from '@aarekaz/switchboard-core';
+import { ok, err, wrapAsync, isOk, isErr } from '@aarekaz/switchboard';
 
 // Create success result
 const success = ok({ id: '123', text: 'Hello' });
@@ -221,7 +221,7 @@ Thrown when:
 - You try to create a bot for a platform without importing its adapter
 
 ```typescript
-import { createBot } from '@aarekaz/switchboard-core';
+import { createBot } from '@aarekaz/switchboard';
 // Forgot to import adapter!
 
 const bot = createBot({ platform: 'discord' });

@@ -74,7 +74,7 @@ function createBot(config: BotConfig): Bot
 ### Basic Discord bot
 
 ```typescript
-import { createBot } from '@aarekaz/switchboard-core';
+import { createBot } from '@aarekaz/switchboard';
 import '@aarekaz/switchboard-discord';
 
 const bot = createBot({
@@ -96,7 +96,7 @@ await bot.start();
 ### Basic Slack bot
 
 ```typescript
-import { createBot } from '@aarekaz/switchboard-core';
+import { createBot } from '@aarekaz/switchboard';
 import '@aarekaz/switchboard-slack';
 
 const bot = createBot({
@@ -116,7 +116,7 @@ await bot.start();
 ### Using a custom adapter
 
 ```typescript
-import { createBot } from '@aarekaz/switchboard-core';
+import { createBot } from '@aarekaz/switchboard';
 import { MyCustomAdapter } from './custom-adapter';
 
 const adapter = new MyCustomAdapter();
@@ -139,7 +139,7 @@ The `createBot` function throws an `AdapterNotFoundError` if:
 - No custom adapter is provided via `config.adapter`
 
 ```typescript
-import { createBot } from '@aarekaz/switchboard-core';
+import { createBot } from '@aarekaz/switchboard';
 
 try {
   const bot = createBot({
