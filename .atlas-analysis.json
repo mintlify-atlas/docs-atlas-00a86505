@@ -1,0 +1,111 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Switchboard",
+  "projectDescription": "Universal SDK for chat platforms - build bots once and deploy them seamlessly across Slack, Teams, Discord, and Google Chat.",
+  "theme": "palm",
+  "primaryColor": "#6366f1",
+  "lightColor": "#818cf8",
+  "darkColor": "#4f46e5",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/platform-adapters",
+              "concepts/type-system",
+              "concepts/error-handling"
+            ]
+          },
+          {
+            "group": "Platform Guides",
+            "pages": [
+              "platforms/discord",
+              "platforms/slack"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/middleware",
+              "advanced/custom-adapters",
+              "advanced/contributing"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core API",
+            "pages": [
+              "api/create-bot",
+              "api/bot-class",
+              "api/configuration"
+            ]
+          },
+          {
+            "group": "Platform Adapters",
+            "pages": [
+              "api/adapters/discord",
+              "api/adapters/slack"
+            ]
+          },
+          {
+            "group": "Type Reference",
+            "pages": [
+              "api/types/messages",
+              "api/types/events",
+              "api/types/channels",
+              "api/types/users",
+              "api/types/errors"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "One-line platform switching between Discord, Slack, Teams, and Google Chat",
+    "Unified API for sending messages, handling events, and managing reactions",
+    "Full TypeScript support with intelligent type inference",
+    "Platform-agnostic bot logic with progressive disclosure of complexity",
+    "Monorepo architecture with tree-shakeable platform adapters",
+    "Result type pattern for robust error handling"
+  ],
+  "publicApiSurface": [
+    "createBot(config: BotConfig): Bot",
+    "Bot.start(): Promise<void>",
+    "Bot.stop(): Promise<void>",
+    "Bot.sendMessage(channelId: string, text: string, options?: SendMessageOptions): Promise<Result<UnifiedMessage>>",
+    "Bot.reply(message: UnifiedMessage, text: string, options?: SendMessageOptions): Promise<Result<UnifiedMessage>>",
+    "Bot.editMessage(messageRef: MessageRef, newText: string): Promise<Result<UnifiedMessage>>",
+    "Bot.deleteMessage(messageRef: MessageRef): Promise<Result<void>>",
+    "Bot.addReaction(messageRef: MessageRef, emoji: string): Promise<Result<void>>",
+    "Bot.removeReaction(messageRef: MessageRef, emoji: string): Promise<Result<void>>",
+    "Bot.createThread(messageRef: MessageRef, text: string): Promise<Result<UnifiedMessage>>",
+    "Bot.uploadFile(channelId: string, file: unknown, options?: UploadOptions): Promise<Result<UnifiedMessage>>",
+    "Bot.getChannels(): Promise<Result<Channel[]>>",
+    "Bot.getUsers(channelId?: string): Promise<Result<User[]>>",
+    "Bot.onMessage(handler: MessageHandler): void",
+    "Bot.onReaction(handler: (event: ReactionEvent) => void | Promise<void>): void",
+    "Bot.onEvent(handler: (event: UnifiedEvent) => void | Promise<void>): void",
+    "ok<T>(value: T): Result<T>",
+    "err(error: Error): Result<never>",
+    "wrapAsync<T>(fn: () => Promise<T>): Promise<Result<T>>",
+    "isOk<T>(result: Result<T>): boolean",
+    "isErr<T>(result: Result<T>): boolean"
+  ]
+}
