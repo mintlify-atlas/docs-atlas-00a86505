@@ -1,0 +1,38 @@
+---
+title: User types
+description: Type definitions for users and user data
+---
+
+## User
+
+Unified user representation across all platforms.
+
+```typescript
+interface User {
+  id: string;
+  username: string;
+  displayName?: string;
+  isBot: boolean;
+  avatarUrl?: string;
+}
+```
+
+<ResponseField name="id" type="string" required>
+  User ID
+</ResponseField>
+
+<ResponseField name="username" type="string" required>
+  Username
+</ResponseField>
+
+<ResponseField name="displayName" type="string">
+  Display name (may be different from username on some platforms)
+</ResponseField>
+
+<ResponseField name="isBot" type="boolean" required>
+  Whether the user is a bot
+</ResponseField>
+
+<ResponseField name="avatarUrl" type="string">
+  Avatar URL (if available)
+</ResponseField>

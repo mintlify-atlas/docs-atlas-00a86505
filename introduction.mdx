@@ -1,0 +1,142 @@
+---
+title: Introduction
+description: Build chat bots once, deploy everywhere with Switchboard SDK
+---
+
+# Introduction
+
+Switchboard is a universal SDK for chat platforms that enables developers to build bots once and deploy them seamlessly across Slack, Teams, Discord, and Google Chat.
+
+<CardGroup cols={2}>
+  <Card title="One-line platform switching" icon="repeat">
+    Change platforms by modifying a single import statement
+  </Card>
+  <Card title="Unified API" icon="layer-group">
+    Write platform-agnostic bot logic with a consistent interface
+  </Card>
+  <Card title="Full TypeScript support" icon="code">
+    Complete type safety without manual type annotations
+  </Card>
+  <Card title="Progressive disclosure" icon="stairs">
+    Start simple for 90% of use cases, add power when needed
+  </Card>
+</CardGroup>
+
+## Why Switchboard?
+
+Modern teams use different chat platforms, and building bots for each platform requires learning separate APIs, handling different authentication methods, and maintaining multiple codebases. Switchboard solves this by treating platforms as implementation details.
+
+### Design philosophy
+
+Switchboard follows the "Pit of Success" principle - making the right thing the easiest thing.
+
+**Platforms are implementation details** - Your bot logic should be platform-agnostic. Focus on what your bot does, not where it runs.
+
+**One line swap** - Switching platforms should require changing exactly one line of code. Import a different adapter and you're done.
+
+**Progressive disclosure** - Start with simple APIs that cover 90% of use cases. When you need platform-specific features, they're available through opt-in configuration.
+
+**Type safety as a feature** - Full TypeScript support means you catch errors at compile time, not runtime.
+
+## How it works
+
+Switchboard provides a unified `Bot` interface that works across all platforms:
+
+```typescript
+import { createBot } from '@aarekaz/switchboard';
+import '@aarekaz/switchboard/discord';
+
+const bot = createBot({
+  platform: 'discord',
+  credentials: {
+    token: process.env.DISCORD_TOKEN,
+  },
+});
+
+bot.onMessage(async (ctx) => {
+  if (ctx.text.includes('ping')) {
+    await ctx.reply('pong!');
+  }
+});
+
+await bot.start();
+```
+
+To switch to Slack, change one import:
+
+```typescript
+import '@aarekaz/switchboard/slack';
+```
+
+That's it. Your bot logic stays the same.
+
+## Key features
+
+### Unified message handling
+
+All platforms expose a consistent `UnifiedMessage` interface with normalized fields:
+
+- `id` - Platform-specific message ID
+- `channelId` - Channel/room/conversation ID
+- `userId` - User ID of the sender
+- `text` - Plain text content
+- `timestamp` - When the message was sent
+- `threadId` - Thread ID if in a thread
+- `attachments` - File attachments
+
+### Context API
+
+Switchboard provides a convenient context object to message handlers:
+
+```typescript
+bot.onMessage(async (ctx) => {
+  // Access message data
+  console.log(ctx.text);
+  console.log(ctx.userId);
+  
+  // Use helper methods
+  await ctx.reply('Hello!');
+  await ctx.react('thumbsup');
+  await ctx.createThread('Let\'s discuss!');
+});
+```
+
+### Result type for error handling
+
+All bot operations return a `Result` type that forces you to handle errors:
+
+```typescript
+const result = await ctx.reply('Hello!');
+
+if (result.ok) {
+  console.log('Message sent:', result.value.id);
+} else {
+  console.error('Failed:', result.error);
+}
+```
+
+### Platform-specific features
+
+When you need platform-specific features, use opt-in configuration:
+
+```typescript
+await bot.sendMessage(channelId, 'Check this out!', {
+  discord: {
+    embeds: [{ title: 'Hello', description: 'World' }],
+  },
+  slack: {
+    blocks: [/* Slack block kit */],
+  },
+});
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install Switchboard and set up your first bot
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Build your first bot in 5 minutes
+  </Card>
+</CardGroup>

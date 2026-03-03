@@ -1,0 +1,483 @@
+---
+title: Contributing guide
+description: Learn how to contribute to Switchboard SDK
+---
+
+Thank you for your interest in contributing to Switchboard! This guide will help you get started with contributing code, documentation, or new platform adapters.
+
+## Code of conduct
+
+This project adheres to a Code of Conduct that all contributors are expected to follow:
+
+- **Be respectful**: Treat everyone with respect and kindness
+- **Be inclusive**: Welcome newcomers and help them get started
+- **Be constructive**: Provide helpful feedback and suggestions
+- **Be patient**: Remember that everyone is learning
+
+## Getting started
+
+### Prerequisites
+
+Before you begin, make sure you have:
+
+- **Node.js**: Version 18 or higher
+- **pnpm**: Latest version (`npm install -g pnpm`)
+- **Git**: Latest version
+- **TypeScript**: Knowledge of TypeScript is required
+
+### Fork and clone
+
+<Steps>
+
+### Fork the repository
+
+Fork the repository on GitHub to your account.
+
+### Clone your fork
+
+```bash
+git clone https://github.com/YOUR_USERNAME/switchboard.git
+cd switchboard
+```
+
+### Add upstream remote
+
+```bash
+git remote add upstream https://github.com/Aarekaz/switchboard.git
+```
+
+</Steps>
+
+## Development setup
+
+<Steps>
+
+### Install dependencies
+
+```bash
+pnpm install
+```
+
+### Build all packages
+
+```bash
+pnpm build
+```
+
+### Run tests
+
+```bash
+pnpm test
+```
+
+### Set up environment variables
+
+For running examples:
+
+```bash
+cd examples/hello-world
+cp .env.example .env
+# Edit .env with your tokens
+```
+
+</Steps>
+
+## Project structure
+
+Switchboard is organized as a monorepo:
+
+```
+switchboard/
+├── packages/
+│   ├── core/           # Core types, client, and registry
+│   ├── discord/        # Discord platform adapter
+│   └── slack/          # Slack platform adapter
+├── examples/
+│   └── hello-world/    # Example bots
+├── docs/
+│   ├── adr/           # Architecture Decision Records
+│   └── api/           # API reference documentation
+├── .github/
+│   └── workflows/      # CI/CD workflows
+└── README.md
+```
+
+### Package organization
+
+- **@aarekaz/switchboard-core**: Platform-agnostic interfaces and types
+- **@aarekaz/switchboard-discord**: Discord-specific implementation
+- **@aarekaz/switchboard-slack**: Slack-specific implementation
+
+Each package follows this structure:
+
+```
+package/
+├── src/
+│   ├── adapter.ts      # Platform adapter implementation
+│   ├── normalizers.ts  # Platform → Unified type conversion
+│   ├── types.ts        # Platform-specific types
+│   ├── register.ts     # Auto-registration logic
+│   └── index.ts        # Public API exports
+├── README.md           # Package documentation
+├── package.json
+└── tsup.config.ts      # Build configuration
+```
+
+## Development workflow
+
+### Create a branch
+
+Use descriptive branch names:
+
+```bash
+git checkout -b feature/your-feature-name
+# or
+git checkout -b fix/your-bug-fix
+```
+
+Branch naming conventions:
+
+- `feature/` - New features
+- `fix/` - Bug fixes
+- `docs/` - Documentation updates
+- `refactor/` - Code refactoring
+- `test/` - Test additions/modifications
+
+### Make your changes
+
+- Write clean, readable code
+- Follow the coding standards (see below)
+- Add tests for new functionality
+- Update documentation as needed
+
+### Build and test
+
+```bash
+# Build all packages
+pnpm build
+
+# Run type checking
+pnpm typecheck
+
+# Run linter (when configured)
+pnpm lint
+
+# Run tests (when configured)
+pnpm test
+```
+
+### Commit your changes
+
+Follow the commit message guidelines:
+
+```bash
+git add .
+git commit -m "feat: add thread support to Discord adapter"
+```
+
+### Push and create PR
+
+```bash
+git push origin feature/your-feature-name
+```
+
+Then create a Pull Request on GitHub.
+
+## Coding standards
+
+### TypeScript
+
+- **Use strict mode**: All packages use `strict: true`
+- **Explicit types**: Prefer explicit return types on functions
+- **No `any`**: Avoid `any`, use `unknown` or proper types
+- **Interfaces over types**: Use `interface` for object shapes
+
+### Code style
+
+- **Naming conventions**:
+  - `camelCase` for variables and functions
+  - `PascalCase` for classes and types
+  - `SCREAMING_SNAKE_CASE` for constants
+- **File naming**: `kebab-case.ts`
+
+### Documentation
+
+- **JSDoc comments**: Document all public APIs
+- **Examples**: Include usage examples in docstrings
+- **Types first**: Let TypeScript be the documentation where possible
+
+Example:
+
+```typescript
+/**
+ * Send a message to a channel
+ *
+ * @param channelId - The ID of the channel to send to
+ * @param text - The message text to send
+ * @param options - Optional message options
+ * @returns Result containing the sent message or an error
+ *
+ * @example
+ * ```typescript
+ * const result = await bot.sendMessage('123', 'Hello!');
+ * if (result.ok) {
+ *   console.log('Sent:', result.value.id);
+ * }
+ * ```
+ */
+async sendMessage(
+  channelId: string,
+  text: string,
+  options?: SendMessageOptions
+): Promise<Result<UnifiedMessage>>;
+```
+
+## Commit messages
+
+We follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer]
+```
+
+### Types
+
+- **feat**: New feature
+- **fix**: Bug fix
+- **docs**: Documentation changes
+- **refactor**: Code refactoring (no feature/fix)
+- **test**: Test additions/modifications
+- **chore**: Build process, tooling changes
+- **perf**: Performance improvements
+
+### Scopes
+
+- `core` - Changes to @aarekaz/switchboard-core
+- `discord` - Changes to @aarekaz/switchboard-discord
+- `slack` - Changes to @aarekaz/switchboard-slack
+- `examples` - Changes to examples
+- `docs` - Documentation changes
+
+### Examples
+
+```bash
+# Feature
+feat(discord): add voice channel support
+
+# Bug fix
+fix(slack): handle rate limiting correctly
+
+# Documentation
+docs(core): update API reference for Result type
+
+# Refactor
+refactor(core): simplify adapter registry
+
+# Multiple scopes
+feat(discord,slack): add file upload support
+```
+
+## Testing
+
+### Running tests
+
+```bash
+# Run all tests
+pnpm test
+
+# Run tests for specific package
+pnpm --filter @aarekaz/switchboard-core test
+
+# Run tests in watch mode
+pnpm test --watch
+```
+
+### Writing tests
+
+Tests should be colocated with source files:
+
+```
+src/
+├── adapter.ts
+└── adapter.test.ts
+```
+
+Example test structure:
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest';
+import { DiscordAdapter } from './adapter';
+
+describe('DiscordAdapter', () => {
+  let adapter: DiscordAdapter;
+
+  beforeEach(() => {
+    adapter = new DiscordAdapter();
+  });
+
+  it('should normalize Discord messages correctly', () => {
+    const discordMessage = { /* ... */ };
+    const normalized = normalizeMessage(discordMessage);
+
+    expect(normalized).toMatchObject({
+      id: expect.any(String),
+      channelId: expect.any(String),
+      userId: expect.any(String),
+      text: expect.any(String),
+    });
+  });
+});
+```
+
+## Pull request process
+
+### Before submitting
+
+Make sure:
+
+- Code builds without errors (`pnpm build`)
+- All tests pass (`pnpm test`)
+- Code follows style guidelines
+- Documentation is updated
+- Commit messages follow conventions
+- Branch is up to date with `main`
+
+### PR description template
+
+```markdown
+## Description
+Brief description of changes
+
+## Type of change
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
+- [ ] Documentation update
+
+## Testing
+How to test these changes
+
+## Checklist
+- [ ] Code follows style guidelines
+- [ ] Documentation updated
+- [ ] Tests added/updated
+- [ ] All tests pass
+- [ ] No breaking changes (or documented)
+
+## Related issues
+Closes #123
+```
+
+### Review process
+
+<Steps>
+
+### Automated checks
+
+CI must pass (build, tests, lint).
+
+### Code review
+
+At least one maintainer approval required.
+
+### Address feedback
+
+Respond to review comments and make requested changes.
+
+### Merge
+
+Maintainer will merge when approved.
+
+</Steps>
+
+## Adding a new platform adapter
+
+Want to add support for Teams, WhatsApp, or another platform? Here's the quick guide:
+
+<Steps>
+
+### Create package structure
+
+```bash
+mkdir -p packages/your-platform/src
+cd packages/your-platform
+```
+
+### Create required files
+
+- `package.json` - Package configuration
+- `src/types.ts` - Platform-specific types
+- `src/normalizers.ts` - Type conversion functions
+- `src/adapter.ts` - Implement `PlatformAdapter` interface
+- `src/register.ts` - Auto-registration logic
+- `src/index.ts` - Public exports
+- `README.md` - Setup guide
+- `tsup.config.ts` - Build configuration
+
+### Implement PlatformAdapter
+
+See the [custom adapters guide](/advanced/custom-adapters) for detailed instructions.
+
+### Add example
+
+Create `examples/hello-world/your-platform.ts` to demonstrate usage.
+
+### Write documentation
+
+- Comprehensive README
+- Platform-specific limitations
+- Setup instructions with screenshots
+
+### Submit PR
+
+Follow the PR process to submit your adapter.
+
+</Steps>
+
+<Note>
+For detailed guidance on creating adapters, see the [custom adapters guide](/advanced/custom-adapters).
+</Note>
+
+## Documentation
+
+### API reference
+
+API documentation lives in `docs/api/`. Update when:
+
+- Adding new public APIs
+- Changing function signatures
+- Deprecating functionality
+
+### Architecture Decision Records (ADRs)
+
+For significant architectural decisions, create an ADR in `docs/adr/`:
+
+```bash
+cp docs/adr/template.md docs/adr/006-your-decision.md
+```
+
+See `docs/adr/README.md` for the template.
+
+### README updates
+
+Keep package READMEs up to date:
+
+- Add new features to feature lists
+- Update examples to show new functionality
+- Document breaking changes
+
+## Getting help
+
+- **GitHub Discussions**: For questions and ideas
+- **Issues**: For bugs and feature requests
+- **Pull Requests**: For code contributions
+
+## License
+
+By contributing, you agree that your contributions will be licensed under the same license as the project.
+
+Thank you for contributing to Switchboard!

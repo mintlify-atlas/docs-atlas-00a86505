@@ -1,0 +1,612 @@
+---
+title: Custom adapters
+description: Build custom platform adapters to add support for new chat platforms
+---
+
+Platform adapters are the bridge between Switchboard's unified API and specific chat platforms. This guide shows you how to create a custom adapter for platforms like Microsoft Teams, Telegram, or WhatsApp.
+
+## Overview
+
+Every platform adapter implements the `PlatformAdapter` interface, which defines methods for:
+
+- Connecting to the platform
+- Sending and managing messages
+- Handling reactions and threads
+- Subscribing to events
+- Normalizing platform-specific data
+
+## The PlatformAdapter interface
+
+Here's the complete interface from `packages/core/src/adapter/interface.ts`:
+
+```typescript
+import type { Result } from '../types/result.js';
+import type { PlatformType } from '../types/platform.js';
+import type {
+  UnifiedMessage,
+  MessageRef,
+  SendMessageOptions,
+  UploadOptions,
+} from '../types/message.js';
+import type { UnifiedEvent } from '../types/event.js';
+import type { Channel } from '../types/channel.js';
+import type { User } from '../types/user.js';
+
+export interface PlatformAdapter {
+  // Metadata
+  readonly name: string;
+  readonly platform: PlatformType;
+
+  // Lifecycle
+  connect(credentials: unknown): Promise<void>;
+  disconnect(): Promise<void>;
+  isConnected(): boolean;
+
+  // Message operations
+  sendMessage(
+    channelId: string,
+    text: string,
+    options?: SendMessageOptions
+  ): Promise<Result<UnifiedMessage>>;
+
+  editMessage(
+    messageRef: MessageRef,
+    newText: string
+  ): Promise<Result<UnifiedMessage>>;
+
+  deleteMessage(messageRef: MessageRef): Promise<Result<void>;
+
+  // Reactions
+  addReaction(messageRef: MessageRef, emoji: string): Promise<Result<void>>;
+  removeReaction(messageRef: MessageRef, emoji: string): Promise<Result<void>>;
+
+  // Thread operations
+  createThread(
+    messageRef: MessageRef,
+    text: string
+  ): Promise<Result<UnifiedMessage>>;
+
+  // File uploads
+  uploadFile(
+    channelId: string,
+    file: unknown,
+    options?: UploadOptions
+  ): Promise<Result<UnifiedMessage>>;
+
+  // Event subscription
+  onEvent(handler: (event: UnifiedEvent) => void | Promise<void>): void;
+
+  // Info retrieval
+  getChannels(): Promise<Result<Channel[]>>;
+  getUsers(channelId?: string): Promise<Result<User[]>>;
+
+  // Normalization helpers
+  normalizeMessage(platformMessage: unknown): UnifiedMessage;
+  normalizeEvent(platformEvent: unknown): UnifiedEvent | null;
+}
+```
+
+## Step-by-step guide
+
+<Steps>
+
+### Create package structure
+
+Create a new package following the Switchboard structure:
+
+```bash
+mkdir -p packages/your-platform/src
+cd packages/your-platform
+```
+
+Create these files:
+- `package.json` - Package configuration
+- `src/types.ts` - Platform-specific types
+- `src/normalizers.ts` - Type conversion functions
+- `src/adapter.ts` - Adapter implementation
+- `src/register.ts` - Auto-registration logic
+- `src/index.ts` - Public exports
+- `tsup.config.ts` - Build configuration
+- `README.md` - Setup guide
+
+### Configure package.json
+
+```json
+{
+  "name": "@aarekaz/switchboard-your-platform",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "dependencies": {
+    "@aarekaz/switchboard-core": "workspace:*",
+    "your-platform-sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "tsup": "^8.0.0"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  }
+}
+```
+
+### Define platform types
+
+Create `src/types.ts` for platform-specific types:
+
+```typescript
+export interface YourPlatformCredentials {
+  apiKey: string;
+  apiSecret?: string;
+}
+
+export interface YourPlatformConfig {
+  // Platform-specific configuration
+  webhookUrl?: string;
+  timeout?: number;
+}
+
+export interface YourPlatformMessageOptions {
+  // Platform-specific message options
+  formatting?: 'markdown' | 'html';
+  buttons?: Array<{ text: string; url: string }>;
+}
+```
+
+### Implement the adapter
+
+Create `src/adapter.ts` with your adapter class. Here's a template:
+
+```typescript
+import type {
+  PlatformAdapter,
+  Result,
+  UnifiedMessage,
+  MessageRef,
+  UnifiedEvent,
+  Channel,
+  User,
+} from '@aarekaz/switchboard-core';
+import {
+  ok,
+  err,
+  ConnectionError,
+  MessageSendError,
+  MessageEditError,
+  MessageDeleteError,
+  ReactionError,
+} from '@aarekaz/switchboard-core';
+import { normalizeMessage, normalizeEvent } from './normalizers.js';
+import type { YourPlatformCredentials, YourPlatformConfig } from './types.js';
+
+export class YourPlatformAdapter implements PlatformAdapter {
+  readonly name = 'your-platform-adapter';
+  readonly platform = 'your-platform' as const;
+
+  private client: any = null;
+  private eventHandlers: Set<(event: UnifiedEvent) => void> = new Set();
+  private config: YourPlatformConfig;
+
+  constructor(config: YourPlatformConfig = {}) {
+    this.config = config;
+  }
+
+  async connect(credentials: unknown): Promise<void> {
+    const creds = credentials as YourPlatformCredentials;
+
+    if (!creds.apiKey) {
+      throw new ConnectionError(
+        'your-platform',
+        new Error('API key is required')
+      );
+    }
+
+    try {
+      // Initialize your platform's SDK/client
+      this.client = new YourPlatformClient({
+        apiKey: creds.apiKey,
+        apiSecret: creds.apiSecret,
+      });
+
+      // Set up event listeners
+      this.setupEventListeners();
+
+      // Connect to the platform
+      await this.client.connect();
+    } catch (error) {
+      throw new ConnectionError('your-platform', error);
+    }
+  }
+
+  async disconnect(): Promise<void> {
+    if (this.client) {
+      await this.client.disconnect();
+      this.client = null;
+    }
+  }
+
+  isConnected(): boolean {
+    return this.client !== null && this.client.isConnected();
+  }
+
+  async sendMessage(
+    channelId: string,
+    text: string,
+    options?: unknown
+  ): Promise<Result<UnifiedMessage>> {
+    if (!this.client) {
+      return err(new ConnectionError('your-platform', new Error('Not connected')));
+    }
+
+    try {
+      const response = await this.client.sendMessage({
+        channelId,
+        text,
+        ...options,
+      });
+
+      return ok(normalizeMessage(response));
+    } catch (error) {
+      return err(
+        new MessageSendError(
+          'your-platform',
+          channelId,
+          error instanceof Error ? error : new Error(String(error))
+        )
+      );
+    }
+  }
+
+  // Implement other required methods...
+  // editMessage, deleteMessage, addReaction, removeReaction,
+  // createThread, uploadFile, onEvent, getChannels, getUsers,
+  // normalizeMessage, normalizeEvent
+
+  private setupEventListeners(): void {
+    if (!this.client) return;
+
+    this.client.on('message', (platformMessage: any) => {
+      const event = normalizeEvent(platformMessage);
+      if (event) {
+        this.emitEvent(event);
+      }
+    });
+
+    // Set up other event listeners...
+  }
+
+  private emitEvent(event: UnifiedEvent): void {
+    for (const handler of this.eventHandlers) {
+      try {
+        handler(event);
+      } catch (error) {
+        console.error('Error in event handler:', error);
+      }
+    }
+  }
+}
+```
+
+### Create normalizers
+
+Create `src/normalizers.ts` to convert platform types to Switchboard types:
+
+```typescript
+import type { UnifiedMessage, UnifiedEvent } from '@aarekaz/switchboard-core';
+
+export function normalizeMessage(platformMessage: any): UnifiedMessage {
+  return {
+    id: platformMessage.id,
+    channelId: platformMessage.channelId,
+    userId: platformMessage.userId,
+    text: platformMessage.text || '',
+    timestamp: new Date(platformMessage.timestamp),
+    threadId: platformMessage.threadId,
+    attachments: platformMessage.attachments?.map((att: any) => ({
+      url: att.url,
+      filename: att.filename,
+      contentType: att.contentType,
+      size: att.size,
+    })),
+  };
+}
+
+export function normalizeEvent(platformEvent: any): UnifiedEvent | null {
+  if (platformEvent.type === 'message') {
+    return {
+      type: 'message',
+      message: normalizeMessage(platformEvent.message),
+    };
+  }
+
+  // Handle other event types...
+
+  return null;
+}
+```
+
+### Set up auto-registration
+
+Create `src/register.ts` to automatically register your adapter:
+
+```typescript
+import { registry } from '@aarekaz/switchboard-core';
+import { YourPlatformAdapter } from './adapter.js';
+
+const adapter = new YourPlatformAdapter();
+registry.register('your-platform', adapter);
+
+if (process.env.NODE_ENV !== 'production') {
+  console.log('[Switchboard] Your Platform adapter registered');
+}
+```
+
+### Export public API
+
+Create `src/index.ts` to export everything:
+
+```typescript
+export { YourPlatformAdapter } from './adapter.js';
+export type {
+  YourPlatformCredentials,
+  YourPlatformConfig,
+  YourPlatformMessageOptions,
+} from './types.js';
+
+// Import register.ts to trigger auto-registration
+import './register.js';
+```
+
+### Configure build
+
+Create `tsup.config.ts`:
+
+```typescript
+import { defineConfig } from 'tsup';
+
+export default defineConfig({
+  entry: ['src/index.ts'],
+  format: ['esm'],
+  dts: true,
+  clean: true,
+  sourcemap: true,
+});
+```
+
+</Steps>
+
+## Real-world example: Discord adapter
+
+Here's how the Discord adapter handles message sending (from `packages/discord/src/adapter.ts:116`):
+
+```typescript
+async sendMessage(
+  channelId: string,
+  text: string,
+  options?: unknown
+): Promise<Result<UnifiedMessage>> {
+  if (!this.client) {
+    return err(new ConnectionError('discord', new Error('Not connected')));
+  }
+
+  try {
+    const channel = await this.client.channels.fetch(channelId);
+
+    if (!channel || !channel.isTextBased()) {
+      return err(
+        new MessageSendError(
+          'discord',
+          channelId,
+          new Error('Channel not found or not text-based')
+        )
+      );
+    }
+
+    const discordOptions = (options as { discord?: DiscordMessageOptions })
+      ?.discord;
+
+    const message = await (channel as TextChannel).send({
+      content: text,
+      embeds: discordOptions?.embeds,
+      components: discordOptions?.components,
+      allowedMentions: discordOptions?.allowedMentions,
+    });
+
+    return ok(normalizeMessage(message));
+  } catch (error) {
+    return err(
+      new MessageSendError(
+        'discord',
+        channelId,
+        error instanceof Error ? error : new Error(String(error))
+      )
+    );
+  }
+}
+```
+
+## Handling platform-specific features
+
+Platforms have unique features. Use the `options` parameter to pass platform-specific data:
+
+```typescript
+// In your adapter
+async sendMessage(
+  channelId: string,
+  text: string,
+  options?: SendMessageOptions
+): Promise<Result<UnifiedMessage>> {
+  // Extract platform-specific options
+  const platformOptions = (options as { yourPlatform?: YourPlatformMessageOptions })
+    ?.yourPlatform;
+
+  // Use them when calling the platform API
+  const message = await this.client.send({
+    channel: channelId,
+    text,
+    formatting: platformOptions?.formatting,
+    buttons: platformOptions?.buttons,
+  });
+
+  return ok(normalizeMessage(message));
+}
+```
+
+Users can then use platform-specific features:
+
+```typescript
+await bot.sendMessage('channel-id', 'Hello!', {
+  yourPlatform: {
+    formatting: 'markdown',
+    buttons: [{ text: 'Click me', url: 'https://example.com' }],
+  },
+});
+```
+
+## Testing your adapter
+
+Create tests to verify your adapter works correctly:
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest';
+import { YourPlatformAdapter } from './adapter';
+
+describe('YourPlatformAdapter', () => {
+  let adapter: YourPlatformAdapter;
+
+  beforeEach(() => {
+    adapter = new YourPlatformAdapter();
+  });
+
+  it('should connect successfully', async () => {
+    await adapter.connect({
+      apiKey: 'test-key',
+    });
+
+    expect(adapter.isConnected()).toBe(true);
+  });
+
+  it('should send messages', async () => {
+    await adapter.connect({ apiKey: 'test-key' });
+    
+    const result = await adapter.sendMessage(
+      'test-channel',
+      'Hello, world!'
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.text).toBe('Hello, world!');
+    }
+  });
+});
+```
+
+## Error handling best practices
+
+<Note>
+Always use the `Result` type for operations that can fail. Return `ok(value)` for success and `err(error)` for failures.
+</Note>
+
+Use appropriate error types:
+
+- `ConnectionError` - Connection/authentication failures
+- `MessageSendError` - Failed to send message
+- `MessageEditError` - Failed to edit message
+- `MessageDeleteError` - Failed to delete message
+- `ReactionError` - Failed to add/remove reaction
+
+```typescript
+import {
+  ok,
+  err,
+  MessageSendError,
+} from '@aarekaz/switchboard-core';
+
+try {
+  const response = await this.client.sendMessage(channelId, text);
+  return ok(normalizeMessage(response));
+} catch (error) {
+  return err(
+    new MessageSendError(
+      'your-platform',
+      channelId,
+      error instanceof Error ? error : new Error(String(error))
+    )
+  );
+}
+```
+
+## Message context caching
+
+Some platforms (like Slack) require channel context for operations. Cache message metadata:
+
+```typescript
+import { LRUCache } from 'lru-cache';
+
+private messageCache: LRUCache<string, { channelId: string }>;
+
+constructor() {
+  this.messageCache = new LRUCache({
+    max: 1000,
+    ttl: 1000 * 60 * 60, // 1 hour
+  });
+}
+
+private cacheMessage(message: UnifiedMessage): void {
+  this.messageCache.set(message.id, {
+    channelId: message.channelId,
+  });
+}
+```
+
+See the Slack adapter (`packages/slack/src/adapter.ts:809`) for a complete example.
+
+## Registering with the global registry
+
+The registry is how Switchboard discovers adapters. Your `register.ts` file should:
+
+```typescript
+import { registry } from '@aarekaz/switchboard-core';
+import { YourPlatformAdapter } from './adapter.js';
+
+const adapter = new YourPlatformAdapter();
+registry.register('your-platform', adapter);
+```
+
+This is called automatically when users import your package:
+
+```typescript
+import '@aarekaz/switchboard-your-platform';
+// Adapter is now registered and ready to use
+```
+
+## Documentation
+
+Create a comprehensive README with:
+
+- Installation instructions
+- Setup guide with screenshots
+- Credential configuration
+- Platform-specific limitations
+- Example bot code
+- Links to the platform's API documentation
+
+<Warning>
+Before publishing your adapter, test it thoroughly with real platform credentials and various edge cases.
+</Warning>
+
+## Next steps
+
+- Read the [contributing guide](/advanced/contributing) to submit your adapter
+- Check out existing adapters in `packages/discord/` and `packages/slack/`
+- Join the discussion to get help with your adapter

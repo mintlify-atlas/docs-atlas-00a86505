@@ -1,0 +1,478 @@
+---
+title: Bot class
+description: Main interface for interacting with chat platforms
+---
+
+## Overview
+
+The `Bot` class is the main interface for interacting with chat platforms. It provides methods for sending messages, handling events, managing reactions, and more.
+
+## Properties
+
+### platform
+
+```typescript
+readonly platform: PlatformType
+```
+
+Get the platform type this bot is connected to (e.g., `'discord'`, `'slack'`).
+
+## Lifecycle methods
+
+### start()
+
+```typescript
+async start(): Promise<void>
+```
+
+Start the bot and connect to the platform. This must be called before the bot can send or receive messages.
+
+**Example:**
+```typescript
+const bot = createBot({ platform: 'discord', credentials: { token } });
+await bot.start();
+console.log('Bot is running!');
+```
+
+### stop()
+
+```typescript
+async stop(): Promise<void>
+```
+
+Stop the bot and disconnect from the platform.
+
+**Example:**
+```typescript
+await bot.stop();
+console.log('Bot stopped');
+```
+
+### isConnected()
+
+```typescript
+isConnected(): boolean
+```
+
+Check if the bot is currently connected to the platform.
+
+**Returns:** `true` if connected, `false` otherwise.
+
+**Example:**
+```typescript
+if (bot.isConnected()) {
+  console.log('Bot is connected');
+}
+```
+
+## Messaging methods
+
+### sendMessage()
+
+```typescript
+async sendMessage(
+  channelId: string,
+  text: string,
+  options?: SendMessageOptions
+): Promise<Result<UnifiedMessage>>
+```
+
+Send a message to a specific channel.
+
+<ParamField path="channelId" type="string" required>
+  The ID of the channel to send the message to
+</ParamField>
+
+<ParamField path="text" type="string" required>
+  The text content of the message
+</ParamField>
+
+<ParamField path="options" type="SendMessageOptions">
+  Optional message options
+
+  <ParamField path="options.threadId" type="string">
+    Send message in a specific thread
+  </ParamField>
+
+  <ParamField path="options.discord" type="object">
+    Discord-specific options (embeds, components)
+  </ParamField>
+
+  <ParamField path="options.slack" type="object">
+    Slack-specific options (blocks, unfurl settings)
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Result<UnifiedMessage>">
+  Result object containing the sent message on success, or error on failure
+</ResponseField>
+
+**Example:**
+```typescript
+const result = await bot.sendMessage('channel-id', 'Hello, world!');
+if (result.ok) {
+  console.log('Message sent:', result.value.id);
+} else {
+  console.error('Failed to send:', result.error);
+}
+```
+
+### reply()
+
+```typescript
+async reply(
+  message: UnifiedMessage,
+  text: string,
+  options?: SendMessageOptions
+): Promise<Result<UnifiedMessage>>
+```
+
+Reply to a message. If the message is in a thread, the reply will be sent in the same thread.
+
+<ParamField path="message" type="UnifiedMessage" required>
+  The message to reply to
+</ParamField>
+
+<ParamField path="text" type="string" required>
+  The text content of the reply
+</ParamField>
+
+<ParamField path="options" type="SendMessageOptions">
+  Optional message options
+</ParamField>
+
+<ResponseField name="result" type="Result<UnifiedMessage>">
+  Result object containing the sent reply on success, or error on failure
+</ResponseField>
+
+**Example:**
+```typescript
+bot.onMessage(async (ctx) => {
+  await bot.reply(ctx.message, 'Got your message!');
+});
+```
+
+### editMessage()
+
+```typescript
+async editMessage(
+  messageRef: MessageRef,
+  newText: string
+): Promise<Result<UnifiedMessage>>
+```
+
+Edit an existing message. Only works for messages sent by the bot.
+
+<ParamField path="messageRef" type="MessageRef" required>
+  Reference to the message to edit. Can be a message ID string or a `UnifiedMessage` object. Using the full message object is recommended for cross-platform reliability.
+</ParamField>
+
+<ParamField path="newText" type="string" required>
+  The new text content for the message
+</ParamField>
+
+<ResponseField name="result" type="Result<UnifiedMessage>">
+  Result object containing the edited message on success, or error on failure
+</ResponseField>
+
+**Example:**
+```typescript
+const sent = await bot.sendMessage('channel-id', 'Processing...');
+if (sent.ok) {
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  await bot.editMessage(sent.value, 'Done!');
+}
+```
+
+### deleteMessage()
+
+```typescript
+async deleteMessage(messageRef: MessageRef): Promise<Result<void>>
+```
+
+Delete a message.
+
+<ParamField path="messageRef" type="MessageRef" required>
+  Reference to the message to delete. Can be a message ID string or a `UnifiedMessage` object.
+</ParamField>
+
+<ResponseField name="result" type="Result<void>">
+  Result object indicating success or failure
+</ResponseField>
+
+**Example:**
+```typescript
+const sent = await bot.sendMessage('channel-id', 'This will be deleted');
+if (sent.ok) {
+  await bot.deleteMessage(sent.value);
+}
+```
+
+## Reaction methods
+
+### addReaction()
+
+```typescript
+async addReaction(messageRef: MessageRef, emoji: string): Promise<Result<void>>
+```
+
+Add a reaction emoji to a message.
+
+<ParamField path="messageRef" type="MessageRef" required>
+  Reference to the message to react to
+</ParamField>
+
+<ParamField path="emoji" type="string" required>
+  Emoji to add. Can be Unicode emoji (e.g., '👍') or platform-specific name (e.g., 'thumbsup')
+</ParamField>
+
+<ResponseField name="result" type="Result<void>">
+  Result object indicating success or failure
+</ResponseField>
+
+**Example:**
+```typescript
+bot.onMessage(async (ctx) => {
+  await bot.addReaction(ctx.message, '👍');
+});
+```
+
+### removeReaction()
+
+```typescript
+async removeReaction(messageRef: MessageRef, emoji: string): Promise<Result<void>>
+```
+
+Remove a reaction emoji from a message.
+
+<ParamField path="messageRef" type="MessageRef" required>
+  Reference to the message to remove reaction from
+</ParamField>
+
+<ParamField path="emoji" type="string" required>
+  Emoji to remove
+</ParamField>
+
+<ResponseField name="result" type="Result<void>">
+  Result object indicating success or failure
+</ResponseField>
+
+## Thread methods
+
+### createThread()
+
+```typescript
+async createThread(
+  messageRef: MessageRef,
+  text: string
+): Promise<Result<UnifiedMessage>>
+```
+
+Create a thread on a message or reply in an existing thread.
+
+<ParamField path="messageRef" type="MessageRef" required>
+  Reference to the message to create a thread on
+</ParamField>
+
+<ParamField path="text" type="string" required>
+  First message in the thread
+</ParamField>
+
+<ResponseField name="result" type="Result<UnifiedMessage>">
+  Result object containing the thread message on success
+</ResponseField>
+
+**Example:**
+```typescript
+bot.onMessage(async (ctx) => {
+  if (ctx.text.includes('discuss')) {
+    await bot.createThread(ctx.message, 'Let\'s talk about this!');
+  }
+});
+```
+
+## File methods
+
+### uploadFile()
+
+```typescript
+async uploadFile(
+  channelId: string,
+  file: unknown,
+  options?: UploadOptions
+): Promise<Result<UnifiedMessage>>
+```
+
+Upload a file to a channel.
+
+<ParamField path="channelId" type="string" required>
+  The ID of the channel to upload to
+</ParamField>
+
+<ParamField path="file" type="unknown" required>
+  File to upload (format depends on platform)
+</ParamField>
+
+<ParamField path="options" type="UploadOptions">
+  Optional upload options
+
+  <ParamField path="options.filename" type="string">
+    File name (if not provided in the File object)
+  </ParamField>
+
+  <ParamField path="options.comment" type="string">
+    Optional comment/message to send with the file
+  </ParamField>
+
+  <ParamField path="options.threadId" type="string">
+    Send file in a specific thread
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Result<UnifiedMessage>">
+  Result object containing the message with the uploaded file
+</ResponseField>
+
+## Data retrieval methods
+
+### getChannels()
+
+```typescript
+async getChannels(): Promise<Result<Channel[]>>
+```
+
+Get list of channels the bot has access to.
+
+<ResponseField name="result" type="Result<Channel[]>">
+  Result object containing array of channels on success
+</ResponseField>
+
+**Example:**
+```typescript
+const result = await bot.getChannels();
+if (result.ok) {
+  result.value.forEach(channel => {
+    console.log(`${channel.name} (${channel.id})`);
+  });
+}
+```
+
+### getUsers()
+
+```typescript
+async getUsers(channelId?: string): Promise<Result<User[]>>
+```
+
+Get list of users, optionally filtered by channel.
+
+<ParamField path="channelId" type="string">
+  Optional channel ID to get users from. If omitted, returns all users the bot can see.
+</ParamField>
+
+<ResponseField name="result" type="Result<User[]>">
+  Result object containing array of users on success
+</ResponseField>
+
+**Example:**
+```typescript
+const result = await bot.getUsers('channel-id');
+if (result.ok) {
+  console.log(`${result.value.length} users in channel`);
+}
+```
+
+## Event handling methods
+
+### onMessage()
+
+```typescript
+onMessage(handler: MessageHandler | ((message: UnifiedMessage) => void | Promise<void>)): void
+```
+
+Register a handler for message events. Supports both the modern context API (recommended) and legacy message API.
+
+<ParamField path="handler" type="MessageHandler" required>
+  Function to handle incoming messages. Receives a `MessageContext` object with message data and helper methods.
+</ParamField>
+
+**Example (Context API - recommended):**
+```typescript
+bot.onMessage(async (ctx) => {
+  console.log(`${ctx.userId}: ${ctx.text}`);
+  await ctx.reply('Hello!');
+  await ctx.react('👍');
+});
+```
+
+**Example (Legacy API):**
+```typescript
+bot.onMessage(async (message) => {
+  console.log(message.text);
+  await bot.reply(message, 'Hello!');
+});
+```
+
+### onReaction()
+
+```typescript
+onReaction(handler: (event: ReactionEvent) => void | Promise<void>): void
+```
+
+Register a handler for reaction events (when reactions are added or removed).
+
+<ParamField path="handler" type="(event: ReactionEvent) => void | Promise<void>" required>
+  Function to handle reaction events
+</ParamField>
+
+**Example:**
+```typescript
+bot.onReaction(async (event) => {
+  console.log(`${event.userId} ${event.action} ${event.emoji} on ${event.messageId}`);
+});
+```
+
+### onEvent()
+
+```typescript
+onEvent(handler: (event: UnifiedEvent) => void | Promise<void>): void
+```
+
+Register a handler for all events (wildcard event listener).
+
+<ParamField path="handler" type="(event: UnifiedEvent) => void | Promise<void>" required>
+  Function to handle any event
+</ParamField>
+
+**Example:**
+```typescript
+bot.onEvent(async (event) => {
+  console.log('Event received:', event.type);
+  if (event.type === 'message') {
+    console.log('Message:', event.message.text);
+  }
+});
+```
+
+## Advanced methods
+
+### getAdapter()
+
+```typescript
+getAdapter(): PlatformAdapter
+```
+
+Get the underlying platform adapter for advanced use cases. This allows direct access to platform-specific functionality not exposed through the unified API.
+
+<ResponseField name="adapter" type="PlatformAdapter">
+  The platform adapter instance
+</ResponseField>
+
+**Example:**
+```typescript
+const adapter = bot.getAdapter();
+// Access platform-specific features
+```
+
+<Warning>
+Using the adapter directly bypasses the unified API and may reduce portability across platforms. Use only when necessary.
+</Warning>

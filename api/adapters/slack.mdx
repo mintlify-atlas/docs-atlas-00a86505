@@ -1,0 +1,586 @@
+---
+title: 'Slack adapter'
+description: 'Slack platform adapter for Switchboard SDK'
+---
+
+The Slack adapter implements the `PlatformAdapter` interface to enable Switchboard bots to connect to Slack using the Bolt framework.
+
+## Installation
+
+```bash
+npm install @aarekaz/switchboard-slack
+```
+
+## SlackAdapter
+
+The main adapter class that handles Slack platform integration with built-in message context caching.
+
+### Constructor
+
+```typescript
+new SlackAdapter(config?: SlackConfig)
+```
+
+<ParamField path="config" type="SlackConfig" optional>
+  Optional configuration for the Slack adapter
+  
+  <Expandable title="properties">
+    <ParamField path="cacheSize" type="number" optional default={1000}>
+      Maximum cache size for message context
+    </ParamField>
+    
+    <ParamField path="cacheTTL" type="number" optional default={3600000}>
+      Cache TTL in milliseconds (default: 1 hour)
+    </ParamField>
+    
+    <ParamField path="socketMode" type="boolean" optional>
+      Enable Socket Mode (auto-detected based on credentials if not specified)
+    </ParamField>
+    
+    <ParamField path="port" type="number" optional default={3000}>
+      Port for Events API when using HTTP mode
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Properties
+
+<ResponseField name="name" type="string" required>
+  Adapter name: `'slack-adapter'`
+</ResponseField>
+
+<ResponseField name="platform" type="'slack'" required>
+  Platform identifier: `'slack'`
+</ResponseField>
+
+### Methods
+
+#### connect
+
+Establish connection to Slack.
+
+```typescript
+async connect(credentials: SlackCredentials): Promise<void>
+```
+
+<ParamField path="credentials" type="SlackCredentials" required>
+  Slack authentication credentials
+  
+  <Expandable title="properties">
+    <ParamField path="botToken" type="string" required>
+      Slack bot token (xoxb-...)
+    </ParamField>
+    
+    <ParamField path="appToken" type="string" optional>
+      App-level token for Socket Mode (xapp-...). Required if using Socket Mode
+    </ParamField>
+    
+    <ParamField path="signingSecret" type="string" optional>
+      Signing secret for Events API. Required if using Events API
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+**Throws:** `ConnectionError` if connection fails
+
+**Connection modes:**
+
+<Tabs>
+  <Tab title="Socket Mode (Development)">
+    Recommended for local development. Requires both `botToken` and `appToken`.
+    
+    ```typescript
+    await adapter.connect({
+      botToken: process.env.SLACK_BOT_TOKEN,
+      appToken: process.env.SLACK_APP_TOKEN
+    });
+    ```
+  </Tab>
+  
+  <Tab title="Events API (Production)">
+    Recommended for production. Requires `botToken` and `signingSecret`.
+    
+    ```typescript
+    await adapter.connect({
+      botToken: process.env.SLACK_BOT_TOKEN,
+      signingSecret: process.env.SLACK_SIGNING_SECRET
+    });
+    ```
+  </Tab>
+</Tabs>
+
+#### disconnect
+
+Close the Slack connection and clear message cache.
+
+```typescript
+async disconnect(): Promise<void>
+```
+
+#### isConnected
+
+Check if the adapter is currently connected.
+
+```typescript
+isConnected(): boolean
+```
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if connected to Slack
+</ResponseField>
+
+#### sendMessage
+
+Send a message to a Slack channel.
+
+```typescript
+async sendMessage(
+  channelId: string,
+  text: string,
+  options?: SendMessageOptions
+): Promise<Result<UnifiedMessage>>
+```
+
+<ParamField path="channelId" type="string" required>
+  Slack channel ID where the message will be sent
+</ParamField>
+
+<ParamField path="text" type="string" required>
+  Message text content
+</ParamField>
+
+<ParamField path="options" type="SendMessageOptions" optional>
+  Platform-specific message options
+  
+  <Expandable title="properties">
+    <ParamField path="threadId" type="string" optional>
+      Thread timestamp to reply in thread
+    </ParamField>
+    
+    <ParamField path="slack.blocks" type="unknown[]" optional>
+      Slack Block Kit blocks for rich formatting
+    </ParamField>
+    
+    <ParamField path="slack.unfurl_links" type="boolean" optional>
+      Whether to unfurl links in the message
+    </ParamField>
+    
+    <ParamField path="slack.unfurl_media" type="boolean" optional>
+      Whether to unfurl media in the message
+    </ParamField>
+    
+    <ParamField path="slack.metadata" type="unknown" optional>
+      Message metadata
+    </ParamField>
+    
+    <ParamField path="slack.thread_ts" type="string" optional>
+      Thread timestamp (alternative to `threadId`)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+**Returns:** `Result<UnifiedMessage>` - Success result with the sent message, or error
+
+**Example:**
+
+```typescript
+const result = await adapter.sendMessage(
+  'C1234567890',
+  'Hello Slack!',
+  {
+    slack: {
+      blocks: [
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: '*Hello* from Switchboard!'
+          }
+        }
+      ]
+    }
+  }
+);
+```
+
+#### editMessage
+
+Edit an existing message.
+
+```typescript
+async editMessage(
+  messageRef: MessageRef,
+  newText: string
+): Promise<Result<UnifiedMessage>>
+```
+
+<ParamField path="messageRef" type="MessageRef" required>
+  Message reference (full message object or message ID)
+</ParamField>
+
+<ParamField path="newText" type="string" required>
+  New message text
+</ParamField>
+
+**Returns:** `Result<UnifiedMessage>` - Success result with the edited message, or error
+
+<Warning>
+  On Slack, editing messages by ID only works if the message is in the cache. Pass the full message object for reliability:
+  
+  - `bot.editMessage(message, "text")` ✅ Works reliably
+  - `bot.editMessage(message.id, "text")` ❌ May fail if cache expired
+  
+  Messages are cached for 1 hour by default (configurable via `cacheTTL`).
+</Warning>
+
+#### deleteMessage
+
+Delete a message.
+
+```typescript
+async deleteMessage(messageRef: MessageRef): Promise<Result<void>>
+```
+
+<ParamField path="messageRef" type="MessageRef" required>
+  Message reference (full message object recommended)
+</ParamField>
+
+**Returns:** `Result<void>` - Success or error result
+
+<Warning>
+  Like `editMessage`, this method requires channel context. Use the full message object for reliability.
+</Warning>
+
+#### addReaction
+
+Add an emoji reaction to a message.
+
+```typescript
+async addReaction(
+  messageRef: MessageRef,
+  emoji: string
+): Promise<Result<void>>
+```
+
+<ParamField path="messageRef" type="MessageRef" required>
+  Message reference (full message object recommended)
+</ParamField>
+
+<ParamField path="emoji" type="string" required>
+  Emoji to add (Unicode emoji or Slack emoji name)
+</ParamField>
+
+**Returns:** `Result<void>` - Success or error result
+
+**Example:**
+
+```typescript
+await adapter.addReaction(message, '👍');
+await adapter.addReaction(message, ':thumbsup:');
+await adapter.addReaction(message, ':custom_emoji:');
+```
+
+#### removeReaction
+
+Remove an emoji reaction from a message.
+
+```typescript
+async removeReaction(
+  messageRef: MessageRef,
+  emoji: string
+): Promise<Result<void>>
+```
+
+<ParamField path="messageRef" type="MessageRef" required>
+  Message reference (full message object recommended)
+</ParamField>
+
+<ParamField path="emoji" type="string" required>
+  Emoji to remove
+</ParamField>
+
+**Returns:** `Result<void>` - Success or error result
+
+#### createThread
+
+Create a thread by replying to a message.
+
+```typescript
+async createThread(
+  messageRef: MessageRef,
+  text: string
+): Promise<Result<UnifiedMessage>>
+```
+
+<ParamField path="messageRef" type="MessageRef" required>
+  Message reference to reply to
+</ParamField>
+
+<ParamField path="text" type="string" required>
+  Thread reply text
+</ParamField>
+
+**Returns:** `Result<UnifiedMessage>` - Success result with the thread message, or error
+
+#### getChannels
+
+Get list of available channels.
+
+```typescript
+async getChannels(): Promise<Result<Channel[]>>
+```
+
+**Returns:** `Result<Channel[]>` - List of public and private channels
+
+**Example:**
+
+```typescript
+const result = await adapter.getChannels();
+if (result.ok) {
+  result.value.forEach(channel => {
+    console.log(`${channel.name} (${channel.id})`);
+  });
+}
+```
+
+#### getUsers
+
+Get list of users.
+
+```typescript
+async getUsers(channelId?: string): Promise<Result<User[]>>
+```
+
+<ParamField path="channelId" type="string" optional>
+  Optional channel ID to get members from. If omitted, returns all users
+</ParamField>
+
+**Returns:** `Result<User[]>` - List of users
+
+<Note>
+  Fetching users for a specific channel makes additional API calls to get user info for each member.
+</Note>
+
+#### onEvent
+
+Register an event handler for Slack events.
+
+```typescript
+onEvent(handler: (event: UnifiedEvent) => void | Promise<void>): void
+```
+
+<ParamField path="handler" type="(event: UnifiedEvent) => void" required>
+  Event handler function that receives unified events
+</ParamField>
+
+**Supported events:**
+- `message` - New message received
+- `reaction` - Reaction added or removed
+
+**Example:**
+
+```typescript
+adapter.onEvent((event) => {
+  if (event.type === 'message') {
+    console.log('Message received:', event.message.text);
+  } else if (event.type === 'reaction') {
+    console.log('Reaction:', event.action, event.emoji);
+  }
+});
+```
+
+## Types
+
+### SlackCredentials
+
+Authentication credentials for Slack.
+
+```typescript
+interface SlackCredentials {
+  botToken: string;
+  appToken?: string;
+  signingSecret?: string;
+  scopes?: string[];
+}
+```
+
+<ParamField path="botToken" type="string" required>
+  Slack bot token (xoxb-...)
+</ParamField>
+
+<ParamField path="appToken" type="string" optional>
+  App-level token for Socket Mode (xapp-...). Required if using Socket Mode
+</ParamField>
+
+<ParamField path="signingSecret" type="string" optional>
+  Signing secret for Events API. Required if using Events API
+</ParamField>
+
+<ParamField path="scopes" type="string[]" optional>
+  OAuth scopes if using OAuth
+</ParamField>
+
+### SlackConfig
+
+Configuration options for the Slack adapter.
+
+```typescript
+interface SlackConfig {
+  cacheSize?: number;
+  cacheTTL?: number;
+  socketMode?: boolean;
+  port?: number;
+}
+```
+
+<ParamField path="cacheSize" type="number" optional default={1000}>
+  Maximum cache size for message context
+</ParamField>
+
+<ParamField path="cacheTTL" type="number" optional default={3600000}>
+  Cache TTL in milliseconds (1 hour = 3600000ms)
+</ParamField>
+
+<ParamField path="socketMode" type="boolean" optional>
+  Enable Socket Mode. Auto-detected based on credentials if not specified
+</ParamField>
+
+<ParamField path="port" type="number" optional default={3000}>
+  Port for Events API when using HTTP mode
+</ParamField>
+
+### SlackMessageOptions
+
+Platform-specific message options for Slack.
+
+```typescript
+interface SlackMessageOptions {
+  blocks?: unknown[];
+  unfurl_links?: boolean;
+  unfurl_media?: boolean;
+  thread_ts?: string;
+  metadata?: unknown;
+}
+```
+
+<ParamField path="blocks" type="unknown[]" optional>
+  Slack Block Kit blocks for rich formatting
+</ParamField>
+
+<ParamField path="unfurl_links" type="boolean" optional>
+  Whether to unfurl links
+</ParamField>
+
+<ParamField path="unfurl_media" type="boolean" optional>
+  Whether to unfurl media
+</ParamField>
+
+<ParamField path="thread_ts" type="string" optional>
+  Thread timestamp for replying in threads
+</ParamField>
+
+<ParamField path="metadata" type="unknown" optional>
+  Message metadata
+</ParamField>
+
+### MessageContext
+
+Internal type for cached message context.
+
+```typescript
+interface MessageContext {
+  channelId: string;
+  threadId?: string;
+  timestamp: Date;
+}
+```
+
+<ParamField path="channelId" type="string" required>
+  Slack channel ID
+</ParamField>
+
+<ParamField path="threadId" type="string" optional>
+  Thread timestamp if message is in a thread
+</ParamField>
+
+<ParamField path="timestamp" type="Date" required>
+  Message timestamp
+</ParamField>
+
+## Message caching
+
+The Slack adapter uses an LRU cache to store message context (channel ID, thread ID) because Slack's API requires the channel ID for most operations, but only provides the timestamp in some contexts.
+
+### Cache configuration
+
+```typescript
+const adapter = new SlackAdapter({
+  cacheSize: 1000,     // Store up to 1000 messages
+  cacheTTL: 3600000    // Cache for 1 hour
+});
+```
+
+### Cache behavior
+
+- Messages are automatically cached when sent or received
+- Cache is cleared on disconnect
+- Cache statistics are logged every 1000 operations in development
+
+### Best practices
+
+<Tip>
+  Always pass the full message object instead of just the ID to avoid cache misses:
+  
+  ```typescript
+  // ✅ Recommended
+  await bot.editMessage(message, 'Updated text');
+  await bot.addReaction(message, '👍');
+  
+  // ❌ May fail if cache expired
+  await bot.editMessage(message.id, 'Updated text');
+  await bot.addReaction(message.id, '👍');
+  ```
+</Tip>
+
+## Usage example
+
+```typescript
+import { createBot } from '@aarekaz/switchboard-core';
+import '@aarekaz/switchboard-slack';
+
+const bot = createBot({
+  platform: 'slack',
+  credentials: {
+    botToken: process.env.SLACK_BOT_TOKEN,
+    appToken: process.env.SLACK_APP_TOKEN  // Socket Mode
+  },
+  config: {
+    cacheSize: 2000,
+    cacheTTL: 7200000  // 2 hours
+  }
+});
+
+bot.onMessage(async (message) => {
+  if (message.text === 'ping') {
+    const result = await bot.sendMessage(
+      message.channelId,
+      'pong!',
+      {
+        slack: {
+          blocks: [
+            {
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: '*Pong!* :ping_pong:'
+              }
+            }
+          ]
+        }
+      }
+    );
+  }
+});
+
+await bot.start();
+```

@@ -1,0 +1,580 @@
+---
+title: Slack platform guide
+description: Build Slack bots with Switchboard SDK - setup, configuration, and platform-specific features
+---
+
+The Slack adapter allows you to build Slack bots using the Switchboard SDK with a unified API.
+
+## Installation
+
+Install the Slack adapter alongside the core package:
+
+```bash
+npm install @aarekaz/switchboard @aarekaz/switchboard-slack
+```
+
+The Slack adapter uses [@slack/bolt](https://slack.dev/bolt-js/) under the hood.
+
+## Getting started
+
+<Steps>
+  <Step title="Create a Slack app">
+    1. Go to the [Slack API Dashboard](https://api.slack.com/apps)
+    2. Click "Create New App"
+    3. Choose "From scratch"
+    4. Enter an app name and select your workspace
+  </Step>
+
+  <Step title="Configure your app">
+    Navigate to "OAuth & Permissions" and add the following **Bot Token Scopes**:
+    - `chat:write` - Send messages
+    - `chat:write.public` - Send messages to channels the bot isn't in
+    - `channels:read` - View basic channel info
+    - `channels:history` - View messages in public channels
+    - `groups:read` - View basic private channel info
+    - `groups:history` - View messages in private channels
+    - `im:history` - View messages in DMs
+    - `reactions:write` - Add and remove reactions
+    - `reactions:read` - View reactions
+    - `users:read` - View user information
+    
+    <Note>
+      Add additional scopes as needed for your bot's functionality.
+    </Note>
+  </Step>
+
+  <Step title="Choose connection mode">
+    Slack bots can connect in two ways:
+
+    <Tabs>
+      <Tab title="Socket Mode (Recommended for development)">
+        **Socket Mode** uses WebSockets and is perfect for development:
+
+        1. Go to "Socket Mode" in the sidebar
+        2. Enable Socket Mode
+        3. Generate an app-level token with `connections:write` scope
+        4. Copy the token (starts with `xapp-`)
+
+        <Note>
+          Socket Mode doesn't require a public URL, making it ideal for local development.
+        </Note>
+      </Tab>
+
+      <Tab title="Events API (Recommended for production)">
+        **Events API** uses HTTP webhooks and is better for production:
+
+        1. Go to "Event Subscriptions" in the sidebar
+        2. Enable Events
+        3. Enter your Request URL (must be publicly accessible)
+        4. Subscribe to bot events:
+           - `message.channels`
+           - `message.groups`
+           - `message.im`
+           - `reaction_added`
+           - `reaction_removed`
+
+        <Warning>
+          You'll need a signing secret from "Basic Information" to verify requests.
+        </Warning>
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Install the app and get tokens">
+    1. Go to "OAuth & Permissions"
+    2. Click "Install to Workspace"
+    3. Authorize the app
+    4. Copy the **Bot User OAuth Token** (starts with `xoxb-`)
+    
+    <Warning>
+      Never share your tokens or commit them to version control. Use environment variables.
+    </Warning>
+  </Step>
+
+  <Step title="Create your bot">
+    <Tabs>
+      <Tab title="Socket Mode">
+        ```typescript
+        import { createBot } from '@aarekaz/switchboard';
+        import '@aarekaz/switchboard-slack';
+
+        const bot = createBot({
+          platform: 'slack',
+          credentials: {
+            botToken: process.env.SLACK_BOT_TOKEN,
+            appToken: process.env.SLACK_APP_TOKEN, // Socket Mode
+          },
+        });
+
+        bot.onMessage(async (message) => {
+          if (message.text === 'ping') {
+            await bot.reply(message, 'pong!');
+          }
+        });
+
+        await bot.start();
+        console.log('Slack bot is running!');
+        ```
+      </Tab>
+
+      <Tab title="Events API">
+        ```typescript
+        import { createBot } from '@aarekaz/switchboard';
+        import '@aarekaz/switchboard-slack';
+
+        const bot = createBot({
+          platform: 'slack',
+          credentials: {
+            botToken: process.env.SLACK_BOT_TOKEN,
+            signingSecret: process.env.SLACK_SIGNING_SECRET,
+          },
+        });
+
+        bot.onMessage(async (message) => {
+          if (message.text === 'ping') {
+            await bot.reply(message, 'pong!');
+          }
+        });
+
+        await bot.start();
+        console.log('Slack bot is running on port 3000');
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+</Steps>
+
+## Configuration
+
+### Credentials
+
+The Slack adapter requires different credentials depending on the connection mode:
+
+```typescript
+interface SlackCredentials {
+  /** Bot token (xoxb-...) - Required for all modes */
+  botToken: string;
+
+  /** App-level token (xapp-...) - Required for Socket Mode */
+  appToken?: string;
+
+  /** Signing secret - Required for Events API */
+  signingSecret?: string;
+}
+```
+
+### Advanced configuration
+
+Customize the Slack adapter with additional options:
+
+```typescript
+import { SlackAdapter } from '@aarekaz/switchboard-slack';
+
+const adapter = new SlackAdapter({
+  // Message cache configuration
+  cacheSize: 1000,           // Max messages to cache (default: 1000)
+  cacheTTL: 3600000,         // Cache TTL in ms (default: 1 hour)
+  
+  // Force Socket Mode
+  socketMode: true,
+  
+  // Custom port for Events API
+  port: 3000,
+});
+```
+
+<Note>
+The adapter automatically detects which mode to use based on the credentials provided.
+</Note>
+
+## Platform-specific features
+
+### Block Kit
+
+Slack's [Block Kit](https://api.slack.com/block-kit) allows you to create rich, interactive messages:
+
+```typescript
+await bot.sendMessage(channelId, 'Fallback text', {
+  slack: {
+    blocks: [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: '*Hello from Switchboard!*\nThis is a Block Kit message.',
+        },
+      },
+      {
+        type: 'section',
+        fields: [
+          { type: 'mrkdwn', text: '*Field 1:*\nValue 1' },
+          { type: 'mrkdwn', text: '*Field 2:*\nValue 2' },
+        ],
+      },
+      {
+        type: 'actions',
+        elements: [
+          {
+            type: 'button',
+            text: { type: 'plain_text', text: 'Click Me' },
+            action_id: 'button_click',
+          },
+        ],
+      },
+    ],
+  },
+});
+```
+
+### Link unfurling
+
+Control how links are displayed in messages:
+
+```typescript
+await bot.sendMessage(channelId, 'Check out https://example.com', {
+  slack: {
+    unfurl_links: false,  // Don't show link previews
+    unfurl_media: false,  // Don't show media previews
+  },
+});
+```
+
+### Message metadata
+
+Attach metadata to messages for later retrieval:
+
+```typescript
+await bot.sendMessage(channelId, 'Hello!', {
+  slack: {
+    metadata: {
+      event_type: 'greeting',
+      event_payload: {
+        user_id: '123',
+        timestamp: Date.now(),
+      },
+    },
+  },
+});
+```
+
+### Thread support
+
+Slack has excellent thread support. Create threads easily:
+
+```typescript
+bot.onMessage(async (message) => {
+  if (message.text.startsWith('!discuss')) {
+    // Reply in a thread
+    const result = await bot.createThread(
+      message,
+      'Let\'s discuss this in a thread!'
+    );
+    
+    if (result.ok) {
+      console.log('Thread started:', result.value.id);
+    }
+  }
+});
+```
+
+### Reactions
+
+Add emoji reactions to messages:
+
+```typescript
+bot.onMessage(async (message) => {
+  // React with a standard emoji
+  await bot.addReaction(message, '👍');
+  
+  // React with a custom emoji (use the emoji name)
+  await bot.addReaction(message, ':custom_emoji:');
+});
+
+// Listen for reactions
+bot.onReaction(async (event) => {
+  console.log(`${event.userId} reacted with ${event.emoji}`);
+  
+  if (event.action === 'added' && event.emoji === '✅') {
+    await bot.reply(event.message, 'Thanks for confirming!');
+  }
+});
+```
+
+### User mentions
+
+Mention users in Slack format:
+
+```typescript
+bot.onMessage(async (message) => {
+  // Mention the user who sent the message
+  await bot.reply(message, `Hello, <@${message.userId}>!`);
+  
+  // Mention a channel
+  await bot.sendMessage(channelId, 'Hello <#C1234567890>!');
+  
+  // Special mentions
+  await bot.sendMessage(channelId, 'Hey <!channel>!');
+  await bot.sendMessage(channelId, 'Hey <!here>!');
+});
+```
+
+## Message context caching
+
+The Slack adapter uses an LRU cache to store message context, which is required for operations like editing and deleting messages.
+
+<Warning>
+**Important**: Slack's API requires the channel ID for most operations. The adapter caches this information, but there are limitations:
+
+- Messages older than 1 hour (default TTL) may not be in the cache
+- The cache is cleared when the bot restarts
+- Messages sent by other bot instances won't be in the cache
+
+**Best practice**: Always pass the full message object instead of just the message ID:
+
+```typescript
+// ✅ Recommended - works reliably
+await bot.editMessage(message, 'Updated text');
+
+// ❌ May fail if message is not in cache
+await bot.editMessage(message.id, 'Updated text');
+```
+</Warning>
+
+## Code examples
+
+### Basic ping bot
+
+```typescript
+import { createBot } from '@aarekaz/switchboard';
+import '@aarekaz/switchboard-slack';
+
+const bot = createBot({
+  platform: 'slack',
+  credentials: {
+    botToken: process.env.SLACK_BOT_TOKEN,
+    appToken: process.env.SLACK_APP_TOKEN,
+  },
+});
+
+bot.onMessage(async (message) => {
+  if (message.text.toLowerCase().includes('ping')) {
+    const result = await bot.reply(message, 'pong!');
+    
+    if (result.ok) {
+      console.log('Replied with pong!');
+    } else {
+      console.error('Failed to reply:', result.error);
+    }
+  }
+});
+
+await bot.start();
+console.log('Bot is running!');
+```
+
+### Block Kit interactive message
+
+```typescript
+bot.onMessage(async (message) => {
+  if (message.text === '!menu') {
+    await bot.reply(message, 'Choose an option:', {
+      slack: {
+        blocks: [
+          {
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: 'What would you like to do?',
+            },
+          },
+          {
+            type: 'actions',
+            elements: [
+              {
+                type: 'button',
+                text: { type: 'plain_text', text: 'Option 1' },
+                style: 'primary',
+                action_id: 'option_1',
+              },
+              {
+                type: 'button',
+                text: { type: 'plain_text', text: 'Option 2' },
+                action_id: 'option_2',
+              },
+            ],
+          },
+        ],
+      },
+    });
+  }
+});
+```
+
+### Reaction-based workflow
+
+```typescript
+const pendingApprovals = new Map();
+
+bot.onMessage(async (message) => {
+  if (message.text.startsWith('!approve')) {
+    const request = message.text.replace('!approve', '').trim();
+    
+    const result = await bot.reply(message, `Approval request: ${request}`);
+    
+    if (result.ok) {
+      // Add reaction options
+      await bot.addReaction(result.value, '✅');
+      await bot.addReaction(result.value, '❌');
+      
+      // Track pending approval
+      pendingApprovals.set(result.value.id, {
+        requester: message.userId,
+        request,
+      });
+    }
+  }
+});
+
+bot.onReaction(async (event) => {
+  const approval = pendingApprovals.get(event.message.id);
+  
+  if (approval && event.action === 'added') {
+    if (event.emoji === '✅') {
+      await bot.reply(event.message, `✅ Approved by <@${event.userId}>`);
+      pendingApprovals.delete(event.message.id);
+    } else if (event.emoji === '❌') {
+      await bot.reply(event.message, `❌ Rejected by <@${event.userId}>`);
+      pendingApprovals.delete(event.message.id);
+    }
+  }
+});
+```
+
+### Thread-based conversations
+
+```typescript
+bot.onMessage(async (message) => {
+  if (message.text === '!help') {
+    const result = await bot.createThread(
+      message,
+      'I can help you with the following commands:'
+    );
+    
+    if (result.ok) {
+      // Continue the thread
+      await bot.sendMessage(message.channelId, '• `!ping` - Test bot response', {
+        threadId: result.value.threadId,
+      });
+      await bot.sendMessage(message.channelId, '• `!help` - Show this help', {
+        threadId: result.value.threadId,
+      });
+    }
+  }
+});
+```
+
+## Best practices
+
+<Accordion title="Always pass the full message object">
+  When using methods like `editMessage()`, `deleteMessage()`, or `addReaction()`, always pass the full message object:
+
+  ```typescript
+  // ✅ Good - works reliably
+  await bot.editMessage(message, 'Updated text');
+  await bot.addReaction(message, '👍');
+
+  // ❌ Bad - may fail if not in cache
+  await bot.editMessage(message.id, 'Updated text');
+  await bot.addReaction(message.id, '👍');
+  ```
+
+  This is especially important for Slack because the API requires channel context for most operations.
+</Accordion>
+
+<Accordion title="Use Socket Mode for development">
+  Socket Mode is perfect for local development:
+  - No need for a public URL
+  - No need to configure webhooks
+  - Easier to debug
+
+  Switch to Events API for production deployments for better reliability and performance.
+</Accordion>
+
+<Accordion title="Handle rate limits">
+  Slack has rate limits. The Bolt framework (used internally) handles most of this, but be mindful:
+  - Don't spam messages in loops
+  - Use batch operations when possible
+  - Implement exponential backoff for retries
+</Accordion>
+
+<Accordion title="Use Block Kit for rich messages">
+  Block Kit provides a much better user experience than plain text:
+  - Use sections for structured content
+  - Add buttons for interactivity
+  - Include context blocks for metadata
+
+  Visit the [Block Kit Builder](https://app.slack.com/block-kit-builder) to design your messages visually.
+</Accordion>
+
+## Troubleshooting
+
+<Accordion title="Bot doesn't respond to messages">
+  **Causes**:
+  1. Missing event subscriptions in Events API mode
+  2. Missing OAuth scopes
+  3. Bot not invited to the channel
+
+  **Solutions**:
+  - Check Event Subscriptions in the Slack API dashboard
+  - Verify you have `chat:write` and `channels:history` scopes
+  - Invite the bot to the channel: `/invite @your_bot`
+</Accordion>
+
+<Accordion title="Cannot edit/delete message - channel context not found">
+  **Cause**: Message is not in the cache (too old, bot restarted, or sent by another instance).
+
+  **Solution**: Pass the full message object instead of just the ID:
+
+  ```typescript
+  // ✅ Correct
+  await bot.editMessage(message, 'New text');
+
+  // ❌ Wrong
+  await bot.editMessage(message.id, 'New text');
+  ```
+</Accordion>
+
+<Accordion title="Socket Mode not connecting">
+  **Causes**:
+  1. Socket Mode not enabled in Slack API dashboard
+  2. Missing or invalid app token
+  3. App token doesn't have `connections:write` scope
+
+  **Solutions**:
+  - Enable Socket Mode in your app settings
+  - Generate a new app-level token with the correct scope
+  - Verify the token starts with `xapp-`
+</Accordion>
+
+<Accordion title="Events API webhook verification failed">
+  **Cause**: Incorrect signing secret or request URL not accessible.
+
+  **Solutions**:
+  - Verify the signing secret from "Basic Information"
+  - Ensure your server is publicly accessible
+  - Check that your server is running before enabling events
+</Accordion>
+
+## Resources
+
+- [Slack API Dashboard](https://api.slack.com/apps) - Create and manage your Slack app
+- [Bolt for JavaScript](https://slack.dev/bolt-js/) - The underlying framework
+- [Block Kit Builder](https://app.slack.com/block-kit-builder) - Design rich messages visually
+- [Slack API Documentation](https://api.slack.com/) - Official API docs
+- [OAuth Scopes](https://api.slack.com/scopes) - Available permission scopes
+
+## Related pages
+
+- [Quickstart](/quickstart) - Get started with Switchboard
+- [Bot Class API](/api/bot-class) - Core Bot class methods
+- [Discord Platform](/platforms/discord) - Build Discord bots

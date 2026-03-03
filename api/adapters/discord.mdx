@@ -1,0 +1,434 @@
+---
+title: 'Discord adapter'
+description: 'Discord platform adapter for Switchboard SDK'
+---
+
+The Discord adapter implements the `PlatformAdapter` interface to enable Switchboard bots to connect to Discord using discord.js.
+
+## Installation
+
+```bash
+npm install @aarekaz/switchboard-discord
+```
+
+## DiscordAdapter
+
+The main adapter class that handles Discord platform integration.
+
+### Constructor
+
+```typescript
+new DiscordAdapter(config?: DiscordConfig)
+```
+
+<ParamField path="config" type="DiscordConfig" optional>
+  Optional configuration for the Discord adapter
+  
+  <Expandable title="properties">
+    <ParamField path="intents" type="number[]" optional>
+      Custom Discord gateway intents. By default, the adapter uses:
+      - `GatewayIntentBits.Guilds`
+      - `GatewayIntentBits.GuildMessages`
+      - `GatewayIntentBits.MessageContent`
+      - `GatewayIntentBits.DirectMessages`
+      - `GatewayIntentBits.GuildMessageReactions`
+    </ParamField>
+    
+    <ParamField path="cacheMessages" type="boolean" optional default={true}>
+      Whether to cache messages
+    </ParamField>
+    
+    <ParamField path="messageCacheSize" type="number" optional default={100}>
+      Maximum number of messages to cache per channel
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Properties
+
+<ResponseField name="name" type="string" required>
+  Adapter name: `'discord-adapter'`
+</ResponseField>
+
+<ResponseField name="platform" type="'discord'" required>
+  Platform identifier: `'discord'`
+</ResponseField>
+
+### Methods
+
+#### connect
+
+Establish connection to Discord.
+
+```typescript
+async connect(credentials: DiscordCredentials): Promise<void>
+```
+
+<ParamField path="credentials" type="DiscordCredentials" required>
+  Discord authentication credentials
+  
+  <Expandable title="properties">
+    <ParamField path="token" type="string" required>
+      Discord bot token from the Developer Portal
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+**Throws:** `ConnectionError` if connection fails
+
+**Example:**
+
+```typescript
+await adapter.connect({
+  token: process.env.DISCORD_BOT_TOKEN
+});
+```
+
+#### disconnect
+
+Close the Discord connection.
+
+```typescript
+async disconnect(): Promise<void>
+```
+
+#### isConnected
+
+Check if the adapter is currently connected.
+
+```typescript
+isConnected(): boolean
+```
+
+<ResponseField name="return" type="boolean">
+  Returns `true` if connected to Discord
+</ResponseField>
+
+#### sendMessage
+
+Send a message to a Discord channel.
+
+```typescript
+async sendMessage(
+  channelId: string,
+  text: string,
+  options?: SendMessageOptions
+): Promise<Result<UnifiedMessage>>
+```
+
+<ParamField path="channelId" type="string" required>
+  Discord channel ID where the message will be sent
+</ParamField>
+
+<ParamField path="text" type="string" required>
+  Message text content
+</ParamField>
+
+<ParamField path="options" type="SendMessageOptions" optional>
+  Platform-specific message options
+  
+  <Expandable title="properties">
+    <ParamField path="discord.embeds" type="EmbedBuilder[]" optional>
+      Discord embeds for rich message formatting
+    </ParamField>
+    
+    <ParamField path="discord.components" type="ActionRowBuilder[]" optional>
+      Discord components like buttons and select menus
+    </ParamField>
+    
+    <ParamField path="discord.allowedMentions" type="object" optional>
+      Control which mentions are allowed in the message
+      
+      <Expandable title="properties">
+        <ParamField path="repliedUser" type="boolean" optional default={false}>
+          Whether to mention the replied user
+        </ParamField>
+      </Expandable>
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+**Returns:** `Result<UnifiedMessage>` - Success result with the sent message, or error
+
+**Example:**
+
+```typescript
+const result = await adapter.sendMessage(
+  'channel-id',
+  'Hello Discord!',
+  {
+    discord: {
+      embeds: [
+        new EmbedBuilder()
+          .setTitle('Welcome')
+          .setDescription('This is a rich embed')
+      ]
+    }
+  }
+);
+```
+
+#### editMessage
+
+Edit an existing message.
+
+```typescript
+async editMessage(
+  messageRef: MessageRef,
+  newText: string
+): Promise<Result<UnifiedMessage>>
+```
+
+<ParamField path="messageRef" type="MessageRef" required>
+  Message reference (full message object or message ID with channel context)
+</ParamField>
+
+<ParamField path="newText" type="string" required>
+  New message text
+</ParamField>
+
+**Returns:** `Result<UnifiedMessage>` - Success result with the edited message, or error
+
+<Note>
+  Pass the full message object instead of just the ID to ensure channel context is available:
+  - `bot.editMessage(message, "text")` ✅ Works
+  - `bot.editMessage(message.id, "text")` ❌ Missing channel context
+</Note>
+
+#### deleteMessage
+
+Delete a message.
+
+```typescript
+async deleteMessage(messageRef: MessageRef): Promise<Result<void>>
+```
+
+<ParamField path="messageRef" type="MessageRef" required>
+  Message reference (full message object recommended)
+</ParamField>
+
+**Returns:** `Result<void>` - Success or error result
+
+#### addReaction
+
+Add an emoji reaction to a message.
+
+```typescript
+async addReaction(
+  messageRef: MessageRef,
+  emoji: string
+): Promise<Result<void>>
+```
+
+<ParamField path="messageRef" type="MessageRef" required>
+  Message reference (full message object recommended)
+</ParamField>
+
+<ParamField path="emoji" type="string" required>
+  Emoji to add (Unicode emoji or Discord custom emoji format)
+</ParamField>
+
+**Returns:** `Result<void>` - Success or error result
+
+**Example:**
+
+```typescript
+await adapter.addReaction(message, '👍');
+await adapter.addReaction(message, '<:custom:123456789>');
+```
+
+#### removeReaction
+
+Remove an emoji reaction from a message.
+
+```typescript
+async removeReaction(
+  messageRef: MessageRef,
+  emoji: string
+): Promise<Result<void>>
+```
+
+<ParamField path="messageRef" type="MessageRef" required>
+  Message reference (full message object recommended)
+</ParamField>
+
+<ParamField path="emoji" type="string" required>
+  Emoji to remove
+</ParamField>
+
+**Returns:** `Result<void>` - Success or error result
+
+#### createThread
+
+Create a thread from a message.
+
+```typescript
+async createThread(
+  messageRef: MessageRef,
+  text: string
+): Promise<Result<UnifiedMessage>>
+```
+
+<ParamField path="messageRef" type="MessageRef" required>
+  Message reference to create thread from
+</ParamField>
+
+<ParamField path="text" type="string" required>
+  Thread name and first message text (max 100 characters for thread name)
+</ParamField>
+
+**Returns:** `Result<UnifiedMessage>` - Success result with the thread message, or error
+
+#### getChannels
+
+Get list of available channels.
+
+```typescript
+async getChannels(): Promise<Result<Channel[]>>
+```
+
+**Returns:** `Result<Channel[]>` - List of text channels (excludes threads)
+
+#### getUsers
+
+Get list of users.
+
+```typescript
+async getUsers(channelId?: string): Promise<Result<User[]>>
+```
+
+<ParamField path="channelId" type="string" optional>
+  Optional channel ID to get members from. If omitted, returns all cached users
+</ParamField>
+
+**Returns:** `Result<User[]>` - List of users
+
+#### onEvent
+
+Register an event handler for Discord events.
+
+```typescript
+onEvent(handler: (event: UnifiedEvent) => void): void
+```
+
+<ParamField path="handler" type="(event: UnifiedEvent) => void" required>
+  Event handler function that receives unified events
+</ParamField>
+
+**Supported events:**
+- `message` - New message received
+- `reaction` - Reaction added or removed
+
+**Example:**
+
+```typescript
+adapter.onEvent((event) => {
+  if (event.type === 'message') {
+    console.log('Message received:', event.message.text);
+  } else if (event.type === 'reaction') {
+    console.log('Reaction:', event.action, event.emoji);
+  }
+});
+```
+
+## Types
+
+### DiscordCredentials
+
+Authentication credentials for Discord.
+
+```typescript
+interface DiscordCredentials {
+  token: string;
+}
+```
+
+<ParamField path="token" type="string" required>
+  Discord bot token from the Developer Portal
+</ParamField>
+
+### DiscordConfig
+
+Configuration options for the Discord adapter.
+
+```typescript
+interface DiscordConfig {
+  intents?: number[];
+  cacheMessages?: boolean;
+  messageCacheSize?: number;
+}
+```
+
+<ParamField path="intents" type="number[]" optional>
+  Custom Discord gateway intents for advanced users
+</ParamField>
+
+<ParamField path="cacheMessages" type="boolean" optional default={true}>
+  Whether to cache messages
+</ParamField>
+
+<ParamField path="messageCacheSize" type="number" optional default={100}>
+  Maximum number of messages to cache per channel
+</ParamField>
+
+### DiscordMessageOptions
+
+Platform-specific message options for Discord.
+
+```typescript
+interface DiscordMessageOptions {
+  embeds?: EmbedBuilder[];
+  components?: ActionRowBuilder<ButtonBuilder>[];
+  allowedMentions?: {
+    repliedUser?: boolean;
+  };
+  suppressEmbeds?: boolean;
+}
+```
+
+<ParamField path="embeds" type="EmbedBuilder[]" optional>
+  Discord embeds for rich message formatting
+</ParamField>
+
+<ParamField path="components" type="ActionRowBuilder[]" optional>
+  Discord components like buttons and select menus
+</ParamField>
+
+<ParamField path="allowedMentions" type="object" optional>
+  Control which mentions are allowed
+  
+  <Expandable title="properties">
+    <ParamField path="repliedUser" type="boolean" optional default={false}>
+      Whether to mention the replied user
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="suppressEmbeds" type="boolean" optional default={false}>
+  Whether to suppress auto-generated embeds
+</ParamField>
+
+## Usage example
+
+```typescript
+import { createBot } from '@aarekaz/switchboard-core';
+import '@aarekaz/switchboard-discord';
+
+const bot = createBot({
+  platform: 'discord',
+  credentials: {
+    token: process.env.DISCORD_BOT_TOKEN
+  },
+  config: {
+    messageCacheSize: 200
+  }
+});
+
+bot.onMessage(async (message) => {
+  if (message.text === 'ping') {
+    await bot.sendMessage(message.channelId, 'pong!');
+  }
+});
+
+await bot.start();
+```

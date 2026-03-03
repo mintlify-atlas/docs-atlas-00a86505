@@ -1,0 +1,348 @@
+---
+title: Configuration
+description: Configuration options for creating and customizing bots
+---
+
+## Overview
+
+This page documents the configuration types and options available when creating a Switchboard bot.
+
+## BotConfig
+
+The main configuration object passed to `createBot()`.
+
+```typescript
+interface BotConfig {
+  platform: PlatformType;
+  credentials?: object;
+  adapter?: PlatformAdapter;
+  platformConfig?: object;
+}
+```
+
+### platform
+
+<ParamField path="platform" type="PlatformType" required>
+  The chat platform to connect to.
+
+  **Supported values:**
+  - `'discord'` - Discord
+  - `'slack'` - Slack
+  - `'teams'` - Microsoft Teams
+  - `'google-chat'` - Google Chat
+  - Custom platform strings for custom adapters
+</ParamField>
+
+**Example:**
+```typescript
+const bot = createBot({
+  platform: 'discord',
+  // ...
+});
+```
+
+### credentials
+
+<ParamField path="credentials" type="object">
+  Platform credentials required for authentication. The structure depends on the platform.
+
+  <ParamField path="credentials.token" type="string">
+    Bot token (used by Discord, Slack)
+  </ParamField>
+
+  <ParamField path="credentials.appId" type="string">
+    Application ID (used by Microsoft Teams)
+  </ParamField>
+
+  <ParamField path="credentials.appPassword" type="string">
+    Application password (used by Microsoft Teams)
+  </ParamField>
+</ParamField>
+
+**Discord example:**
+```typescript
+const bot = createBot({
+  platform: 'discord',
+  credentials: {
+    token: process.env.DISCORD_TOKEN,
+  },
+});
+```
+
+**Slack example:**
+```typescript
+const bot = createBot({
+  platform: 'slack',
+  credentials: {
+    token: process.env.SLACK_BOT_TOKEN,
+  },
+});
+```
+
+**Microsoft Teams example:**
+```typescript
+const bot = createBot({
+  platform: 'teams',
+  credentials: {
+    appId: process.env.TEAMS_APP_ID,
+    appPassword: process.env.TEAMS_APP_PASSWORD,
+  },
+});
+```
+
+### adapter
+
+<ParamField path="adapter" type="PlatformAdapter">
+  Custom adapter instance for advanced users or custom platforms. If provided, this will be used instead of the adapter registered for the platform.
+
+  This is useful when:
+  - Building a custom platform integration
+  - Testing with a mock adapter
+  - Using multiple instances with different configurations
+</ParamField>
+
+**Example:**
+```typescript
+import { MyCustomAdapter } from './custom-adapter';
+
+const adapter = new MyCustomAdapter();
+
+const bot = createBot({
+  platform: 'custom',
+  adapter: adapter,
+  credentials: {
+    apiKey: process.env.CUSTOM_API_KEY,
+  },
+});
+```
+
+### platformConfig
+
+<ParamField path="platformConfig" type="object">
+  Platform-specific configuration options (opt-in). This allows you to pass native SDK options when needed.
+
+  <ParamField path="platformConfig.discord" type="unknown">
+    Discord-specific configuration options
+  </ParamField>
+
+  <ParamField path="platformConfig.slack" type="unknown">
+    Slack-specific configuration options
+  </ParamField>
+
+  <ParamField path="platformConfig.teams" type="unknown">
+    Microsoft Teams-specific configuration options
+  </ParamField>
+
+  <ParamField path="platformConfig.googleChat" type="unknown">
+    Google Chat-specific configuration options
+  </ParamField>
+</ParamField>
+
+**Example:**
+```typescript
+const bot = createBot({
+  platform: 'discord',
+  credentials: { token: process.env.DISCORD_TOKEN },
+  platformConfig: {
+    discord: {
+      intents: ['GUILDS', 'GUILD_MESSAGES'],
+      // Other Discord.js client options
+    },
+  },
+});
+```
+
+## SendMessageOptions
+
+Options for sending messages via `sendMessage()`, `reply()`, etc.
+
+```typescript
+interface SendMessageOptions {
+  threadId?: string;
+  discord?: object;
+  slack?: object;
+  teams?: object;
+  googleChat?: object;
+}
+```
+
+### threadId
+
+<ParamField path="threadId" type="string">
+  Send the message in a specific thread
+</ParamField>
+
+**Example:**
+```typescript
+await bot.sendMessage('channel-id', 'Thread message', {
+  threadId: 'thread-id',
+});
+```
+
+### Platform-specific options
+
+<ParamField path="discord" type="object">
+  Discord-specific message options
+
+  <ParamField path="discord.embeds" type="unknown[]">
+    Discord embeds array
+  </ParamField>
+
+  <ParamField path="discord.components" type="unknown[]">
+    Discord components array (buttons, select menus, etc.)
+  </ParamField>
+</ParamField>
+
+<ParamField path="slack" type="object">
+  Slack-specific message options
+
+  <ParamField path="slack.blocks" type="unknown[]">
+    Slack blocks array for rich formatting
+  </ParamField>
+
+  <ParamField path="slack.unfurl_links" type="boolean">
+    Whether to unfurl links in the message
+  </ParamField>
+
+  <ParamField path="slack.unfurl_media" type="boolean">
+    Whether to unfurl media in the message
+  </ParamField>
+</ParamField>
+
+<ParamField path="teams" type="object">
+  Microsoft Teams-specific message options
+
+  <ParamField path="teams.attachments" type="unknown[]">
+    Teams attachments array
+  </ParamField>
+</ParamField>
+
+<ParamField path="googleChat" type="object">
+  Google Chat-specific message options
+
+  <ParamField path="googleChat.cards" type="unknown[]">
+    Google Chat cards array
+  </ParamField>
+</ParamField>
+
+**Discord example:**
+```typescript
+await bot.sendMessage('channel-id', 'Check out this embed!', {
+  discord: {
+    embeds: [{
+      title: 'Hello',
+      description: 'This is a Discord embed',
+      color: 0x00ff00,
+    }],
+  },
+});
+```
+
+**Slack example:**
+```typescript
+await bot.sendMessage('channel-id', 'Fallback text', {
+  slack: {
+    blocks: [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: '*Hello* from Slack blocks!',
+        },
+      },
+    ],
+  },
+});
+```
+
+## UploadOptions
+
+Options for uploading files via `uploadFile()`.
+
+```typescript
+interface UploadOptions {
+  filename?: string;
+  comment?: string;
+  threadId?: string;
+}
+```
+
+<ParamField path="filename" type="string">
+  File name (if not provided in the File object)
+</ParamField>
+
+<ParamField path="comment" type="string">
+  Optional comment/message to send with the file
+</ParamField>
+
+<ParamField path="threadId" type="string">
+  Send file in a specific thread
+</ParamField>
+
+**Example:**
+```typescript
+import { readFile } from 'fs/promises';
+
+const fileBuffer = await readFile('./image.png');
+
+await bot.uploadFile('channel-id', fileBuffer, {
+  filename: 'image.png',
+  comment: 'Check out this image!',
+});
+```
+
+## Environment variables
+
+While not strictly part of the API, most bots use environment variables to store credentials securely. Here's a recommended setup:
+
+**.env file:**
+```bash
+# Discord
+DISCORD_TOKEN=your_discord_bot_token
+
+# Slack
+SLACK_BOT_TOKEN=xoxb-your-slack-bot-token
+
+# Microsoft Teams
+TEAMS_APP_ID=your_teams_app_id
+TEAMS_APP_PASSWORD=your_teams_app_password
+
+# Google Chat
+GOOGLE_CHAT_CREDENTIALS=path/to/credentials.json
+```
+
+**Loading environment variables:**
+```typescript
+import 'dotenv/config';
+import { createBot } from '@aarekaz/switchboard-core';
+import '@aarekaz/switchboard-discord';
+
+const bot = createBot({
+  platform: 'discord',
+  credentials: {
+    token: process.env.DISCORD_TOKEN,
+  },
+});
+```
+
+<Warning>
+Never commit your `.env` file to version control. Add it to `.gitignore` to keep credentials secure.
+</Warning>
+
+## Type safety
+
+Switchboard is built with TypeScript and provides full type safety for all configuration options. Your editor will provide autocomplete and type checking:
+
+```typescript
+import { createBot, BotConfig } from '@aarekaz/switchboard-core';
+
+// TypeScript will validate this configuration
+const config: BotConfig = {
+  platform: 'discord', // ✓ Valid platform
+  credentials: {
+    token: process.env.DISCORD_TOKEN,
+  },
+};
+
+const bot = createBot(config);
+```

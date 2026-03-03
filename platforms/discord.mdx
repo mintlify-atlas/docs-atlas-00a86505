@@ -1,0 +1,410 @@
+---
+title: Discord platform guide
+description: Build Discord bots with Switchboard SDK - setup, configuration, and platform-specific features
+---
+
+The Discord adapter allows you to build Discord bots using the Switchboard SDK with a unified API.
+
+## Installation
+
+Install the Discord adapter alongside the core package:
+
+```bash
+npm install @aarekaz/switchboard @aarekaz/switchboard-discord
+```
+
+The Discord adapter uses [discord.js](https://discord.js.org/) v14 under the hood.
+
+## Getting started
+
+<Steps>
+  <Step title="Create a Discord application">
+    1. Go to the [Discord Developer Portal](https://discord.com/developers/applications)
+    2. Click "New Application" and give it a name
+    3. Navigate to the "Bot" section in the left sidebar
+    4. Click "Add Bot" to create a bot user
+  </Step>
+
+  <Step title="Get your bot token">
+    1. In the "Bot" section, click "Reset Token" to generate a new token
+    2. Copy the token and save it securely
+    
+    <Warning>
+      Never share your bot token or commit it to version control. Use environment variables to store it.
+    </Warning>
+  </Step>
+
+  <Step title="Configure bot permissions">
+    Enable the following **Privileged Gateway Intents** in the Bot section:
+    - **Message Content Intent** - Required to read message content
+    - **Server Members Intent** - Optional, for member-related features
+    
+    <Note>
+      The Discord adapter automatically configures the necessary Gateway Intents for common use cases.
+    </Note>
+  </Step>
+
+  <Step title="Invite the bot to your server">
+    1. Go to the "OAuth2" → "URL Generator" section
+    2. Select the following scopes:
+       - `bot`
+       - `applications.commands` (if you plan to use slash commands)
+    3. Select bot permissions:
+       - `Send Messages`
+       - `Read Message History`
+       - `Add Reactions`
+       - Any other permissions your bot needs
+    4. Copy the generated URL and open it in your browser to invite the bot
+  </Step>
+
+  <Step title="Create your bot">
+    Create a new file (e.g., `bot.ts`) and add the following code:
+
+    ```typescript
+    import { createBot } from '@aarekaz/switchboard';
+    import '@aarekaz/switchboard-discord';
+
+    const bot = createBot({
+      platform: 'discord',
+      credentials: {
+        token: process.env.DISCORD_TOKEN,
+      },
+    });
+
+    bot.onMessage(async (message) => {
+      if (message.text === 'ping') {
+        await bot.reply(message, 'pong!');
+      }
+    });
+
+    await bot.start();
+    console.log('Discord bot is running!');
+    ```
+  </Step>
+</Steps>
+
+## Configuration
+
+### Credentials
+
+The Discord adapter requires the following credentials:
+
+```typescript
+interface DiscordCredentials {
+  /** Discord bot token from the Developer Portal */
+  token: string;
+}
+```
+
+### Advanced configuration
+
+You can customize the Discord adapter with additional options:
+
+```typescript
+import { DiscordAdapter } from '@aarekaz/switchboard-discord';
+
+const adapter = new DiscordAdapter({
+  // Custom Gateway Intents (for advanced users)
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
+  
+  // Message caching
+  cacheMessages: true,
+  messageCacheSize: 100,
+});
+```
+
+<Note>
+Most users don't need to configure custom intents. The adapter uses sensible defaults that work for common bot use cases.
+</Note>
+
+## Platform-specific features
+
+### Rich embeds
+
+Discord supports rich embeds for enhanced message formatting:
+
+```typescript
+import { EmbedBuilder } from 'discord.js';
+
+const embed = new EmbedBuilder()
+  .setTitle('Hello from Switchboard!')
+  .setDescription('This is a rich embed message')
+  .setColor(0x0099ff)
+  .addFields(
+    { name: 'Field 1', value: 'Value 1' },
+    { name: 'Field 2', value: 'Value 2' }
+  )
+  .setTimestamp();
+
+await bot.sendMessage(channelId, 'Check out this embed!', {
+  discord: {
+    embeds: [embed],
+  },
+});
+```
+
+### Interactive components
+
+Add buttons and other interactive components to your messages:
+
+```typescript
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+
+const row = new ActionRowBuilder<ButtonBuilder>()
+  .addComponents(
+    new ButtonBuilder()
+      .setCustomId('primary')
+      .setLabel('Click me!')
+      .setStyle(ButtonStyle.Primary)
+  );
+
+await bot.sendMessage(channelId, 'Interactive message', {
+  discord: {
+    components: [row],
+  },
+});
+```
+
+### Mention controls
+
+Control how mentions work in your messages:
+
+```typescript
+await bot.sendMessage(channelId, 'Hello @everyone!', {
+  discord: {
+    allowedMentions: {
+      repliedUser: false, // Don't mention the user when replying
+    },
+  },
+});
+```
+
+### Thread support
+
+Create threads from messages:
+
+```typescript
+bot.onMessage(async (message) => {
+  if (message.text.startsWith('!thread')) {
+    // Create a thread and send the first message
+    const result = await bot.createThread(
+      message,
+      'Discussion thread'
+    );
+    
+    if (result.ok) {
+      console.log('Thread created:', result.value.id);
+    }
+  }
+});
+```
+
+### Reactions
+
+Add and remove reactions to messages:
+
+```typescript
+bot.onMessage(async (message) => {
+  // Add a reaction
+  await bot.addReaction(message, '👍');
+  
+  // React with custom emoji
+  await bot.addReaction(message, '<:custom_emoji:123456789>');
+});
+
+// Listen for reactions
+bot.onReaction(async (event) => {
+  console.log(`${event.userId} reacted with ${event.emoji}`);
+  
+  if (event.emoji === '❌') {
+    // Remove the reaction
+    await bot.removeReaction(event.message, event.emoji);
+  }
+});
+```
+
+## Code examples
+
+### Basic ping bot
+
+```typescript
+import { createBot } from '@aarekaz/switchboard';
+import '@aarekaz/switchboard-discord';
+
+const bot = createBot({
+  platform: 'discord',
+  credentials: {
+    token: process.env.DISCORD_TOKEN,
+  },
+});
+
+bot.onMessage(async (message) => {
+  if (message.text.toLowerCase().includes('ping')) {
+    const result = await bot.reply(message, 'pong!');
+    
+    if (result.ok) {
+      console.log('Replied with pong!');
+    } else {
+      console.error('Failed to reply:', result.error);
+    }
+  }
+});
+
+await bot.start();
+```
+
+### Message with embed
+
+```typescript
+import { EmbedBuilder } from 'discord.js';
+
+bot.onMessage(async (message) => {
+  if (message.text === '!info') {
+    const embed = new EmbedBuilder()
+      .setTitle('Bot Information')
+      .setDescription('Built with Switchboard SDK')
+      .setColor(0x00ff00)
+      .addFields(
+        { name: 'Version', value: '1.0.0', inline: true },
+        { name: 'Platform', value: 'Discord', inline: true }
+      )
+      .setFooter({ text: 'Powered by Switchboard' })
+      .setTimestamp();
+
+    await bot.reply(message, 'Here\'s some info:', {
+      discord: { embeds: [embed] },
+    });
+  }
+});
+```
+
+### Multi-step interaction
+
+```typescript
+const userStates = new Map();
+
+bot.onMessage(async (message) => {
+  if (message.text === '!start') {
+    userStates.set(message.userId, 'awaiting_name');
+    await bot.reply(message, 'What\'s your name?');
+    return;
+  }
+
+  const state = userStates.get(message.userId);
+  
+  if (state === 'awaiting_name') {
+    userStates.delete(message.userId);
+    await bot.reply(message, `Nice to meet you, ${message.text}!`);
+    await bot.addReaction(message, '👋');
+  }
+});
+```
+
+## Best practices
+
+<Accordion title="Always pass the full message object">
+  When using methods like `editMessage()`, `deleteMessage()`, or `addReaction()`, always pass the full message object instead of just the message ID:
+
+  ```typescript
+  // ✅ Good - works reliably
+  await bot.editMessage(message, 'Updated text');
+  await bot.addReaction(message, '👍');
+
+  // ❌ Bad - missing channel context
+  await bot.editMessage(message.id, 'Updated text');
+  await bot.addReaction(message.id, '👍');
+  ```
+
+  Discord requires the channel ID for most operations, which is included in the message object but not in the message ID alone.
+</Accordion>
+
+<Accordion title="Handle errors properly">
+  All Switchboard methods return a `Result` type that can be either successful or contain an error:
+
+  ```typescript
+  const result = await bot.sendMessage(channelId, 'Hello!');
+  
+  if (result.ok) {
+    console.log('Message sent:', result.value.id);
+  } else {
+    console.error('Failed to send:', result.error.message);
+  }
+  ```
+</Accordion>
+
+<Accordion title="Use environment variables for tokens">
+  Never hardcode your bot token. Use environment variables:
+
+  ```bash
+  # .env file
+  DISCORD_TOKEN=your_bot_token_here
+  ```
+
+  ```typescript
+  import 'dotenv/config';
+
+  const bot = createBot({
+    platform: 'discord',
+    credentials: {
+      token: process.env.DISCORD_TOKEN,
+    },
+  });
+  ```
+</Accordion>
+
+<Accordion title="Enable required intents">
+  Make sure to enable the **Message Content Intent** in the Discord Developer Portal. Without this, your bot cannot read message content.
+
+  1. Go to your application in the [Discord Developer Portal](https://discord.com/developers/applications)
+  2. Navigate to the "Bot" section
+  3. Scroll to "Privileged Gateway Intents"
+  4. Enable "Message Content Intent"
+</Accordion>
+
+## Troubleshooting
+
+<Accordion title="Bot doesn't respond to messages">
+  **Cause**: Message Content Intent is not enabled.
+
+  **Solution**: Enable the Message Content Intent in the Discord Developer Portal under your application's Bot settings.
+</Accordion>
+
+<Accordion title="Missing permissions error">
+  **Cause**: The bot doesn't have the required permissions in the server or channel.
+
+  **Solution**: 
+  - Check the bot's role permissions in Server Settings → Roles
+  - Ensure the bot has permission to read and send messages in the channel
+  - Re-invite the bot with the correct permissions
+</Accordion>
+
+<Accordion title="Cannot edit/delete message - channel context not found">
+  **Cause**: Using message ID instead of the full message object.
+
+  **Solution**: Always pass the full message object to methods that need channel context:
+
+  ```typescript
+  // ✅ Correct
+  await bot.editMessage(message, 'New text');
+
+  // ❌ Wrong
+  await bot.editMessage(message.id, 'New text');
+  ```
+</Accordion>
+
+## Resources
+
+- [Discord Developer Portal](https://discord.com/developers/applications) - Create and manage your bot
+- [Discord.js Documentation](https://discord.js.org/) - The underlying library used by the adapter
+- [Discord Gateway Intents](https://discord.com/developers/docs/topics/gateway#gateway-intents) - Understanding intents
+- [Discord Permissions Calculator](https://discordapi.com/permissions.html) - Calculate permission integers
+
+## Related pages
+
+- [Quickstart](/quickstart) - Get started with Switchboard
+- [Bot Class API](/api/bot-class) - Core Bot class methods
+- [Slack Platform](/platforms/slack) - Build Slack bots

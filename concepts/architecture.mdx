@@ -1,0 +1,334 @@
+---
+title: Architecture
+description: Understanding Switchboard's layered architecture and design principles
+---
+
+Switchboard SDK is built on a carefully designed layered architecture that makes it simple to use while remaining flexible for advanced use cases. This page explains the core architectural principles and how the different layers work together.
+
+## Layered architecture
+
+Switchboard follows a four-layer architecture pattern inspired by the Vercel AI SDK:
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Layer 1: High-level client API                    │
+│  - createBot()                                      │
+│  - Unified message operations                       │
+│  - Event handlers                                   │
+│  Target: 90% of users                               │
+└─────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────┐
+│  Layer 2: Platform client                          │
+│  - Platform-specific options (opt-in)               │
+│  - Advanced features                                │
+│  Target: 9% of users (power users)                  │
+└─────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────┐
+│  Layer 3: Platform adapters                        │
+│  - Discord adapter                                  │
+│  - Slack adapter                                    │
+│  - Teams adapter                                    │
+│  - Google Chat adapter                              │
+│  Target: 1% of users (extending the SDK)            │
+└─────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────┐
+│  Layer 4: Event normalization (internal)           │
+│  - Platform event → Unified event                   │
+│  - Unified action → Platform action                 │
+│  Target: Internal use only                          │
+└─────────────────────────────────────────────────────┘
+```
+
+### Layer 1: High-level client API
+
+The top layer provides the main developer interface through the `createBot()` function and the `Bot` class. This is what most developers will interact with:
+
+```typescript
+import { createBot } from '@aarekaz/switchboard-core';
+import '@aarekaz/switchboard-discord';
+
+const bot = createBot({
+  platform: 'discord',
+  credentials: { token: process.env.DISCORD_TOKEN }
+});
+
+bot.onMessage(async (ctx) => {
+  await ctx.reply('Hello!');
+});
+
+await bot.start();
+```
+
+This layer focuses on:
+- Simple, intuitive API
+- Type-safe operations
+- Cross-platform consistency
+- Common use cases (90% of users)
+
+### Layer 2: Platform client
+
+The platform client layer allows you to access platform-specific features when needed, without breaking the abstraction:
+
+```typescript
+// Use Discord-specific embeds
+await bot.sendMessage(channelId, 'Check this out!', {
+  discord: {
+    embeds: [{ title: 'Cool Feature', description: 'Details...' }]
+  }
+});
+
+// Use Slack-specific blocks
+await bot.sendMessage(channelId, 'Check this out!', {
+  slack: {
+    blocks: [{ type: 'section', text: { type: 'mrkdwn', text: '*Bold text*' } }]
+  }
+});
+```
+
+This layer enables:
+- Platform-specific features via opt-in options
+- Advanced configuration
+- Power user capabilities
+
+### Layer 3: Platform adapters
+
+Adapters implement the `PlatformAdapter` interface for each platform. This layer is only relevant if you're:
+- Creating a custom platform adapter
+- Contributing to Switchboard
+- Debugging platform-specific behavior
+
+See [Platform adapters](/concepts/platform-adapters) for details.
+
+### Layer 4: Event normalization
+
+The normalization layer is internal to adapters. It handles:
+- Converting platform events to `UnifiedEvent` types
+- Converting unified operations to platform-specific API calls
+- Managing platform-specific quirks and edge cases
+
+<Note>
+You don't need to interact with Layer 4 directly - it's handled automatically by the adapters.
+</Note>
+
+## Dependency inversion
+
+Switchboard uses dependency inversion to keep platform packages separate and tree-shakeable:
+
+```
+@aarekaz/switchboard-core (defines PlatformAdapter interface)
+  ↑
+  ├── @aarekaz/switchboard-discord (implements interface)
+  ├── @aarekaz/switchboard-slack (implements interface)
+  ├── @aarekaz/switchboard-teams (implements interface)
+  └── @aarekaz/switchboard-google-chat (implements interface)
+```
+
+**Key benefits:**
+
+1. **Tree-shaking**: Only the platforms you import get bundled
+2. **Clean separation**: Core has no knowledge of specific platforms
+3. **Extensibility**: Anyone can create custom adapters
+4. **Type safety**: The interface ensures consistency
+
+The core package defines the `PlatformAdapter` interface:
+
+```typescript
+// From packages/core/src/adapter/interface.ts
+export interface PlatformAdapter {
+  readonly name: string;
+  readonly platform: PlatformType;
+  
+  connect(credentials: unknown): Promise<void>;
+  disconnect(): Promise<void>;
+  isConnected(): boolean;
+  
+  sendMessage(
+    channelId: string,
+    text: string,
+    options?: SendMessageOptions
+  ): Promise<Result<UnifiedMessage>>;
+  
+  // ... other methods
+}
+```
+
+Platform packages implement this interface without the core package depending on them.
+
+## Auto-registration pattern
+
+Switchboard uses a clever auto-registration pattern that combines great developer experience with proper tree-shaking:
+
+```typescript
+// Simply import the platform package
+import '@aarekaz/switchboard-discord';
+
+// The adapter registers itself automatically
+const bot = createBot({ platform: 'discord' });
+```
+
+### How it works
+
+1. Each platform package has a registration side-effect:
+
+```typescript
+// packages/discord/src/index.ts
+import { registry } from '@aarekaz/switchboard-core';
+import { discordAdapter } from './adapter.js';
+
+// Side-effect: Register on import
+registry.register('discord', discordAdapter);
+
+export { discordAdapter };
+```
+
+2. The core maintains a global registry:
+
+```typescript
+// packages/core/src/adapter/registry.ts
+class AdapterRegistry {
+  private adapters = new Map<PlatformType, PlatformAdapter>();
+  
+  register(platform: PlatformType, adapter: PlatformAdapter): void {
+    this.adapters.set(platform, adapter);
+  }
+  
+  get(platform: PlatformType): PlatformAdapter | undefined {
+    return this.adapters.get(platform);
+  }
+}
+
+export const registry = new AdapterRegistry();
+```
+
+3. `createBot()` looks up the adapter:
+
+```typescript
+export function createBot(config: BotConfig): Bot {
+  const adapter = registry.get(config.platform);
+  
+  if (!adapter) {
+    throw new AdapterNotFoundError(config.platform);
+  }
+  
+  return new Bot(adapter, config.platform, config.credentials);
+}
+```
+
+### Explicit registration (advanced)
+
+Power users can also register adapters explicitly:
+
+```typescript
+import { createBot } from '@aarekaz/switchboard-core';
+import { discordAdapter } from '@aarekaz/switchboard-discord';
+
+const bot = createBot({
+  platform: 'discord',
+  adapter: discordAdapter  // Explicit adapter
+});
+```
+
+<Tip>
+Use auto-registration for simplicity, explicit registration for fine-grained control.
+</Tip>
+
+## Design principles
+
+Switchboard's architecture is guided by several key principles:
+
+### 1. Platforms are implementation details
+
+Your bot logic shouldn't be tightly coupled to a specific platform. Switchboard treats platforms as swappable backends:
+
+```typescript
+// Change one line to switch platforms
+const bot = createBot({ 
+  platform: 'discord',  // or 'slack', 'teams', 'google-chat'
+  credentials: { token: process.env.TOKEN }
+});
+```
+
+### 2. Progressive disclosure of complexity
+
+Start simple, add complexity only when needed:
+
+```typescript
+// Simple - works everywhere
+await bot.sendMessage(channelId, 'Hello!');
+
+// Advanced - use platform-specific features
+await bot.sendMessage(channelId, 'Hello!', {
+  discord: { embeds: [...] }
+});
+```
+
+### 3. Type safety by default
+
+The entire API is fully typed with TypeScript:
+
+```typescript
+const result = await bot.sendMessage(channelId, 'Hello');
+//    ^? Result<UnifiedMessage>
+
+if (result.ok) {
+  console.log(result.value.id);
+  //                  ^? string
+}
+```
+
+### 4. Explicit error handling
+
+No hidden exceptions - errors are part of the type system:
+
+```typescript
+const result = await bot.sendMessage(channelId, 'Hello');
+
+if (!result.ok) {
+  // Handle error
+  console.error(result.error);
+}
+```
+
+See [Error handling](/concepts/error-handling) for details.
+
+## Package structure
+
+The monorepo is organized to support the layered architecture:
+
+```
+switchboard/
+├── packages/
+│   ├── core/              # @aarekaz/switchboard-core
+│   │   ├── src/
+│   │   │   ├── types/     # UnifiedMessage, UnifiedEvent, Result
+│   │   │   ├── adapter/   # PlatformAdapter interface, registry
+│   │   │   ├── client/    # Bot class, createBot()
+│   │   │   ├── middleware/# Middleware types (Phase 5)
+│   │   │   └── utils/     # Error classes, helpers
+│   │   └── package.json
+│   │
+│   ├── discord/           # @aarekaz/switchboard-discord
+│   │   ├── src/
+│   │   │   ├── adapter.ts # Discord adapter implementation
+│   │   │   └── index.ts   # Auto-registration
+│   │   └── package.json
+│   │
+│   ├── slack/             # @aarekaz/switchboard-slack
+│   └── ...
+│
+└── examples/
+    └── hello-world/
+```
+
+<Note>
+Each platform adapter is a separate npm package, so you only install what you need.
+</Note>
+
+## Next steps
+
+- Learn about [Platform adapters](/concepts/platform-adapters)
+- Understand the [Type system](/concepts/type-system)
+- Read about [Error handling](/concepts/error-handling)

@@ -1,80 +1,456 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Build your first cross-platform chat bot in 5 minutes
 ---
 
-## Get started in three steps
+# Quickstart
 
-Get your documentation site running locally and make your first customization.
+This guide will walk you through creating a simple bot that responds to messages. You'll learn the core concepts of Switchboard and have a working bot in just a few minutes.
 
-### Step 1: Set up your local environment
+## Prerequisites
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+Before starting, make sure you have:
+
+- Node.js 18+ installed
+- A Discord bot token or Slack bot credentials ([see Installation](/installation))
+- Switchboard SDK installed (`npm install @aarekaz/switchboard`)
+
+## Create your first bot
+
+<Steps>
+  <Step title="Set up your project">
+    Create a new directory and initialize a Node.js project:
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    ```bash
+    mkdir my-bot
+    cd my-bot
+    npm init -y
+    npm install @aarekaz/switchboard dotenv
+    npm install -D tsx typescript
+    ```
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    Create a `.env` file with your bot credentials:
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    ```bash .env
+    DISCORD_TOKEN=your_discord_token_here
+    ```
+  </Step>
+  
+  <Step title="Create the bot file">
+    Create a file named `bot.ts` with the following code:
+    
+    ```typescript bot.ts
+    import 'dotenv/config';
+    import { createBot } from '@aarekaz/switchboard';
+    import '@aarekaz/switchboard/discord';
+    
+    async function main() {
+      // Validate environment variable
+      if (!process.env.DISCORD_TOKEN) {
+        throw new Error('DISCORD_TOKEN environment variable is required');
+      }
+    
+      // Create a Discord bot
+      const bot = createBot({
+        platform: 'discord',
+        credentials: {
+          token: process.env.DISCORD_TOKEN,
+        },
+      });
+    
+      console.log('Connecting to Discord...');
+    
+      // Listen for messages
+      bot.onMessage(async (ctx) => {
+        console.log(`Message from ${ctx.userId}: ${ctx.text}`);
+    
+        // Respond to "ping" with "pong"
+        if (ctx.text.toLowerCase().includes('ping')) {
+          const result = await ctx.reply('pong!');
+    
+          if (result.ok) {
+            console.log('Replied with pong!');
+          } else {
+            console.error('Failed to reply:', result.error);
+          }
+        }
+    
+        // Respond to "hello" with a greeting
+        if (ctx.text.toLowerCase().includes('hello')) {
+          const result = await ctx.reply(`Hello, <@${ctx.userId}>!`);
+    
+          if (result.ok) {
+            console.log('Sent greeting!');
+          }
+        }
+      });
+    
+      // Start the bot
+      await bot.start();
+      console.log('Bot is running! Send "ping" or "hello" in Discord to test.');
+    }
+    
+    main().catch((error) => {
+      console.error('Error starting bot:', error);
+      process.exit(1);
+    });
+    ```
+  </Step>
+  
+  <Step title="Run your bot">
+    Start the bot using tsx:
+    
+    ```bash
+    npx tsx bot.ts
+    ```
+    
+    You should see:
+    ```
+    Connecting to Discord...
+    Bot is running! Send "ping" or "hello" in Discord to test.
+    ```
+  </Step>
+  
+  <Step title="Test your bot">
+    Go to your Discord server and send a message:
+    
+    - Type `ping` → Bot replies with `pong!`
+    - Type `hello` → Bot replies with a mention: `Hello, @YourUsername!`
+  </Step>
+</Steps>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+## Understanding the code
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+Let's break down the key parts of the bot:
 
-### Step 3: Go live
+### Creating a bot instance
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+```typescript
+const bot = createBot({
+  platform: 'discord',
+  credentials: {
+    token: process.env.DISCORD_TOKEN,
+  },
+});
+```
+
+The `createBot` function takes a configuration object with:
+- `platform` - Which chat platform to use (`'discord'`, `'slack'`, etc.)
+- `credentials` - Platform-specific authentication credentials
+
+### Listening for messages
+
+```typescript
+bot.onMessage(async (ctx) => {
+  console.log(`Message from ${ctx.userId}: ${ctx.text}`);
+  // ... handle message
+});
+```
+
+The `onMessage` handler receives a `MessageContext` object that provides:
+- `ctx.text` - The message text
+- `ctx.userId` - Who sent the message
+- `ctx.channelId` - Where the message was sent
+- `ctx.reply()` - Send a reply
+- `ctx.react()` - Add a reaction
+- And more helper methods
+
+### Replying to messages
+
+```typescript
+const result = await ctx.reply('pong!');
+
+if (result.ok) {
+  console.log('Replied successfully');
+} else {
+  console.error('Failed to reply:', result.error);
+}
+```
+
+All bot operations return a `Result` type that requires explicit error handling. This ensures you never miss errors.
+
+### Starting the bot
+
+```typescript
+await bot.start();
+```
+
+The `start()` method connects to the platform and begins listening for events.
+
+## Switch to Slack
+
+To run the exact same bot on Slack, change just **two lines**:
+
+<CodeGroup>
+
+```typescript Discord
+import '@aarekaz/switchboard/discord';
+
+const bot = createBot({
+  platform: 'discord',
+  credentials: {
+    token: process.env.DISCORD_TOKEN,
+  },
+});
+```
+
+```typescript Slack
+import '@aarekaz/switchboard/slack';
+
+const bot = createBot({
+  platform: 'slack',
+  credentials: {
+    botToken: process.env.SLACK_BOT_TOKEN,
+    appToken: process.env.SLACK_APP_TOKEN,
+  },
+});
+```
+
+</CodeGroup>
+
+Everything else stays the same. Your message handling logic works identically on both platforms.
+
+## Add more features
+
+Now that you have a basic bot, let's add more functionality:
+
+### Add reactions
+
+```typescript
+bot.onMessage(async (ctx) => {
+  if (ctx.text.toLowerCase().includes('react')) {
+    const result = await ctx.react('thumbsup');
+    
+    if (result.ok) {
+      console.log('Added reaction!');
+    }
+  }
+});
+```
+
+### Create threads
+
+```typescript
+bot.onMessage(async (ctx) => {
+  if (ctx.text.toLowerCase().includes('thread')) {
+    const result = await ctx.createThread('Let\'s discuss this!');
+    
+    if (result.ok) {
+      console.log('Created thread!');
+    }
+  }
+});
+```
+
+### Edit messages
+
+```typescript
+bot.onMessage(async (ctx) => {
+  if (ctx.text.toLowerCase().includes('edit')) {
+    // Send initial message
+    const sendResult = await ctx.reply('Original message');
+    
+    if (sendResult.ok) {
+      // Wait a moment
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Edit the message
+      const editResult = await bot.editMessage(
+        sendResult.value,
+        'Edited message!'
+      );
+      
+      if (editResult.ok) {
+        console.log('Message edited!');
+      }
+    }
+  }
+});
+```
+
+### Send messages to specific channels
+
+```typescript
+// Send a message without needing a context
+const result = await bot.sendMessage(
+  'channel-id-here',
+  'Hello from my bot!'
+);
+
+if (result.ok) {
+  console.log('Message sent:', result.value.id);
+}
+```
+
+## Complete example
+
+Here's a more complete bot that demonstrates multiple features:
+
+```typescript bot.ts
+import 'dotenv/config';
+import { createBot } from '@aarekaz/switchboard';
+import '@aarekaz/switchboard/discord';
+
+async function main() {
+  if (!process.env.DISCORD_TOKEN) {
+    throw new Error('DISCORD_TOKEN environment variable is required');
+  }
+
+  const bot = createBot({
+    platform: 'discord',
+    credentials: {
+      token: process.env.DISCORD_TOKEN,
+    },
+  });
+
+  console.log('Connecting to Discord...');
+
+  bot.onMessage(async (ctx) => {
+    console.log(`[${ctx.channelId}] ${ctx.userId}: ${ctx.text}`);
+
+    // Ping command
+    if (ctx.text.toLowerCase().includes('ping')) {
+      await ctx.reply('pong!');
+    }
+
+    // Greeting
+    if (ctx.text.toLowerCase().includes('hello')) {
+      await ctx.reply(`Hello, <@${ctx.userId}>!`);
+    }
+
+    // Reaction
+    if (ctx.text.toLowerCase().includes('react')) {
+      await ctx.react('thumbsup');
+    }
+
+    // Thread
+    if (ctx.text.toLowerCase().includes('thread')) {
+      await ctx.createThread('Started a thread!');
+    }
+
+    // Edit demo
+    if (ctx.text.toLowerCase().includes('edit')) {
+      const sendResult = await ctx.reply('Original message');
+      
+      if (sendResult.ok) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await bot.editMessage(sendResult.value, 'Edited message!');
+      }
+    }
+  });
+
+  await bot.start();
+  console.log('Bot is running!');
+  console.log('Try: ping, hello, react, thread, edit');
+}
+
+main().catch((error) => {
+  console.error('Error starting bot:', error);
+  process.exit(1);
+});
+```
+
+## Runtime platform switching
+
+You can even switch platforms at runtime using environment variables:
+
+```typescript bot.ts
+import 'dotenv/config';
+import { createBot } from '@aarekaz/switchboard';
+import '@aarekaz/switchboard/discord';
+import '@aarekaz/switchboard/slack';
+
+type Platform = 'discord' | 'slack';
+
+function getCredentials(platform: Platform) {
+  if (platform === 'discord') {
+    return { token: process.env.DISCORD_TOKEN };
+  }
+  return {
+    botToken: process.env.SLACK_BOT_TOKEN,
+    appToken: process.env.SLACK_APP_TOKEN,
+  };
+}
+
+async function main() {
+  const platform = (process.env.PLATFORM || 'discord') as Platform;
+  
+  const bot = createBot({
+    platform,
+    credentials: getCredentials(platform),
+  });
+
+  console.log(`Connecting to ${platform}...`);
+
+  bot.onMessage(async (ctx) => {
+    if (ctx.text.includes('ping')) {
+      await ctx.reply('pong!');
+    }
+  });
+
+  await bot.start();
+  console.log(`Bot running on ${platform}!`);
+}
+
+main().catch(console.error);
+```
+
+Run it:
+
+```bash
+# Run on Discord
+PLATFORM=discord npx tsx bot.ts
+
+# Run on Slack
+PLATFORM=slack npx tsx bot.ts
+```
+
+<Tip>
+  The bot logic is **identical** for both platforms. This is the power of Switchboard!
+</Tip>
+
+## Error handling best practices
+
+Always check the `Result` type returned by bot operations:
+
+```typescript
+const result = await ctx.reply('Hello!');
+
+if (result.ok) {
+  // Success - access the value
+  console.log('Message ID:', result.value.id);
+  console.log('Sent at:', result.value.timestamp);
+} else {
+  // Error - access the error
+  console.error('Failed to send:', result.error);
+  
+  // You can still continue or retry
+  if (result.error.includes('rate limit')) {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Retry...
+  }
+}
+```
+
+<Note>
+  The `Result` type forces you to handle errors explicitly, making your bots more reliable.
+</Note>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
+Now that you have a working bot, explore more features:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="API Reference" icon="book">
+    Explore all available methods and types
+  </Card>
+  <Card title="Platform-specific features" icon="puzzle-piece">
+    Learn how to use Discord embeds, Slack blocks, and more
+  </Card>
+  <Card title="Middleware" icon="filter">
+    Add authentication, logging, and rate limiting
+  </Card>
+  <Card title="Examples" icon="code">
+    See complete bot examples and use cases
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

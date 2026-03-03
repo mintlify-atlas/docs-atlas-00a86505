@@ -1,0 +1,160 @@
+---
+title: createBot
+description: Create a bot instance to connect to a chat platform
+---
+
+## Overview
+
+The `createBot` function is the main entry point for creating a bot instance in Switchboard. It takes a configuration object and returns a `Bot` instance that you can use to interact with the specified chat platform.
+
+## Signature
+
+```typescript
+function createBot(config: BotConfig): Bot
+```
+
+## Parameters
+
+<ParamField path="config" type="BotConfig" required>
+  Configuration object for creating the bot
+
+  <ParamField path="config.platform" type="PlatformType" required>
+    Platform to connect to. Supported values: `'discord'`, `'slack'`, `'teams'`, `'google-chat'`, or custom platform strings.
+  </ParamField>
+
+  <ParamField path="config.credentials" type="object">
+    Platform credentials (structure depends on the platform)
+
+    <ParamField path="config.credentials.token" type="string">
+      Bot token (used by Discord, Slack)
+    </ParamField>
+
+    <ParamField path="config.credentials.appId" type="string">
+      App ID (used by Microsoft Teams)
+    </ParamField>
+
+    <ParamField path="config.credentials.appPassword" type="string">
+      App password (used by Microsoft Teams)
+    </ParamField>
+  </ParamField>
+
+  <ParamField path="config.adapter" type="PlatformAdapter">
+    Custom adapter instance for advanced users or custom platforms. If provided, this will be used instead of the registered adapter.
+  </ParamField>
+
+  <ParamField path="config.platformConfig" type="object">
+    Platform-specific configuration options (opt-in)
+
+    <ParamField path="config.platformConfig.discord" type="unknown">
+      Discord-specific configuration
+    </ParamField>
+
+    <ParamField path="config.platformConfig.slack" type="unknown">
+      Slack-specific configuration
+    </ParamField>
+
+    <ParamField path="config.platformConfig.teams" type="unknown">
+      Microsoft Teams-specific configuration
+    </ParamField>
+
+    <ParamField path="config.platformConfig.googleChat" type="unknown">
+      Google Chat-specific configuration
+    </ParamField>
+  </ParamField>
+</ParamField>
+
+## Returns
+
+<ResponseField name="bot" type="Bot">
+  A Bot instance ready to connect to the specified platform. Call `bot.start()` to establish the connection.
+</ResponseField>
+
+## Examples
+
+### Basic Discord bot
+
+```typescript
+import { createBot } from '@aarekaz/switchboard-core';
+import '@aarekaz/switchboard-discord';
+
+const bot = createBot({
+  platform: 'discord',
+  credentials: {
+    token: process.env.DISCORD_TOKEN,
+  },
+});
+
+bot.onMessage(async (ctx) => {
+  if (ctx.text.includes('ping')) {
+    await ctx.reply('pong!');
+  }
+});
+
+await bot.start();
+```
+
+### Basic Slack bot
+
+```typescript
+import { createBot } from '@aarekaz/switchboard-core';
+import '@aarekaz/switchboard-slack';
+
+const bot = createBot({
+  platform: 'slack',
+  credentials: {
+    token: process.env.SLACK_BOT_TOKEN,
+  },
+});
+
+bot.onMessage(async (ctx) => {
+  await ctx.react('👍');
+});
+
+await bot.start();
+```
+
+### Using a custom adapter
+
+```typescript
+import { createBot } from '@aarekaz/switchboard-core';
+import { MyCustomAdapter } from './custom-adapter';
+
+const adapter = new MyCustomAdapter();
+
+const bot = createBot({
+  platform: 'custom-platform',
+  adapter: adapter,
+  credentials: {
+    apiKey: process.env.CUSTOM_API_KEY,
+  },
+});
+
+await bot.start();
+```
+
+## Error handling
+
+The `createBot` function throws an `AdapterNotFoundError` if:
+- No adapter is registered for the specified platform
+- No custom adapter is provided via `config.adapter`
+
+```typescript
+import { createBot } from '@aarekaz/switchboard-core';
+
+try {
+  const bot = createBot({
+    platform: 'discord',
+    credentials: { token: process.env.DISCORD_TOKEN },
+  });
+} catch (error) {
+  if (error.name === 'AdapterNotFoundError') {
+    console.error('Discord adapter not found. Did you forget to import it?');
+  }
+}
+```
+
+## Notes
+
+- The bot instance is created immediately, but the connection to the platform happens lazily when you call `bot.start()`
+- You must import the platform adapter package (e.g., `@aarekaz/switchboard-discord`) before calling `createBot` for that platform
+- Platform-specific configuration is opt-in and allows you to pass native SDK options when needed

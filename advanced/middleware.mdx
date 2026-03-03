@@ -1,0 +1,306 @@
+---
+title: Middleware system
+description: Learn how to use middleware to process events before they reach your handlers
+---
+
+Middleware provides a powerful way to process, filter, or transform events before they reach your bot's event handlers. While the middleware system is planned for Phase 5, the type definitions are already available.
+
+## Overview
+
+Middleware functions are executed in order before your event handlers run. They can:
+
+- Log events for debugging or analytics
+- Filter out unwanted events
+- Transform event data
+- Add metadata to the context
+- Implement rate limiting or spam detection
+- Handle errors gracefully
+
+## Middleware interface
+
+The middleware system is built around two core types:
+
+```typescript
+interface MiddlewareContext {
+  /** The bot instance */
+  bot: Bot;
+  /** The event being processed */
+  event: UnifiedEvent;
+  /** The platform this event is from */
+  platform: PlatformType;
+  /** Timestamp when the event was received */
+  timestamp: Date;
+}
+
+type Middleware = (
+  context: MiddlewareContext,
+  next: () => Promise<void>
+) => Promise<void>;
+```
+
+## How middleware works
+
+Middleware functions follow the "onion model" - each middleware can:
+
+1. Execute code before calling `next()`
+2. Call `next()` to pass control to the next middleware
+3. Execute code after `next()` returns
+4. Skip calling `next()` to stop the chain
+
+```typescript
+const loggingMiddleware: Middleware = async (context, next) => {
+  console.log('Before:', context.event.type);
+  
+  await next(); // Pass to next middleware
+  
+  console.log('After:', context.event.type);
+};
+```
+
+## Common middleware patterns
+
+### Logging middleware
+
+Log all events for debugging:
+
+```typescript
+const logger: Middleware = async (context, next) => {
+  const { event, platform, timestamp } = context;
+  
+  console.log(`[${timestamp.toISOString()}] ${platform}: ${event.type}`);
+  
+  await next();
+};
+```
+
+### Event filtering
+
+Filter out bot messages:
+
+```typescript
+const ignoreBots: Middleware = async (context, next) => {
+  if (context.event.type === 'message') {
+    const message = context.event.message;
+    
+    if (message?.userId && message.userId.startsWith('bot_')) {
+      // Don't call next() - stops the chain
+      return;
+    }
+  }
+  
+  await next();
+};
+```
+
+### Rate limiting
+
+Limit messages per user:
+
+```typescript
+const rateLimiter = (() => {
+  const userTimestamps = new Map<string, number[]>();
+  const MAX_MESSAGES = 5;
+  const WINDOW_MS = 60000; // 1 minute
+
+  return async (context: MiddlewareContext, next: () => Promise<void>) => {
+    if (context.event.type !== 'message') {
+      return next();
+    }
+
+    const userId = context.event.message?.userId;
+    if (!userId) return next();
+
+    const now = Date.now();
+    const timestamps = userTimestamps.get(userId) || [];
+    
+    // Remove old timestamps
+    const recent = timestamps.filter(t => now - t < WINDOW_MS);
+    
+    if (recent.length >= MAX_MESSAGES) {
+      // Rate limit exceeded - don't process
+      return;
+    }
+    
+    recent.push(now);
+    userTimestamps.set(userId, recent);
+    
+    await next();
+  };
+})();
+```
+
+### Error handling
+
+Catch and log errors:
+
+```typescript
+const errorHandler: Middleware = async (context, next) => {
+  try {
+    await next();
+  } catch (error) {
+    console.error('Error processing event:', error);
+    console.error('Event:', context.event);
+    // Optionally re-throw or handle gracefully
+  }
+};
+```
+
+### Adding metadata
+
+Enrich context with additional data:
+
+```typescript
+const enrichContext: Middleware = async (context, next) => {
+  // Add custom metadata to context
+  (context as any).metadata = {
+    processedAt: new Date(),
+    environment: process.env.NODE_ENV,
+  };
+  
+  await next();
+};
+```
+
+## Using middleware (Phase 5)
+
+<Note>
+The middleware system will be implemented in Phase 5. This section shows the planned API.
+</Note>
+
+Once implemented, you'll be able to register middleware when creating your bot:
+
+```typescript
+import { createBot } from '@aarekaz/switchboard';
+import { logger, ignoreBots, rateLimiter } from './middleware';
+
+const bot = createBot({
+  middleware: [
+    logger,
+    ignoreBots,
+    rateLimiter,
+  ],
+});
+```
+
+Or add middleware after creation:
+
+```typescript
+bot.use(logger);
+bot.use(ignoreBots);
+bot.use(rateLimiter);
+```
+
+## Middleware execution order
+
+Middleware executes in the order it's registered:
+
+```typescript
+const first: Middleware = async (ctx, next) => {
+  console.log('1: before');
+  await next();
+  console.log('1: after');
+};
+
+const second: Middleware = async (ctx, next) => {
+  console.log('2: before');
+  await next();
+  console.log('2: after');
+};
+
+bot.use(first);
+bot.use(second);
+
+// Output when an event arrives:
+// 1: before
+// 2: before
+// [event handler runs]
+// 2: after
+// 1: after
+```
+
+## Best practices
+
+<Steps>
+
+### Keep middleware focused
+
+Each middleware should have a single, clear responsibility.
+
+### Always call next()
+
+Unless you intentionally want to stop the chain, always call `await next()`.
+
+### Handle errors
+
+Wrap middleware logic in try-catch blocks to prevent crashes.
+
+### Be mindful of performance
+
+Middleware runs on every event - keep it fast and efficient.
+
+</Steps>
+
+## Platform-specific middleware
+
+You can create middleware that only runs for specific platforms:
+
+```typescript
+const discordOnly: Middleware = async (context, next) => {
+  if (context.platform !== 'discord') {
+    return next();
+  }
+  
+  // Discord-specific logic here
+  console.log('Processing Discord event');
+  
+  await next();
+};
+```
+
+## Testing middleware
+
+Middleware is easy to test in isolation:
+
+```typescript
+import { describe, it, expect, vi } from 'vitest';
+import { ignoreBots } from './middleware';
+
+describe('ignoreBots middleware', () => {
+  it('should skip bot messages', async () => {
+    const next = vi.fn();
+    const context = {
+      event: {
+        type: 'message',
+        message: { userId: 'bot_12345' },
+      },
+    } as any;
+    
+    await ignoreBots(context, next);
+    
+    expect(next).not.toHaveBeenCalled();
+  });
+  
+  it('should process user messages', async () => {
+    const next = vi.fn();
+    const context = {
+      event: {
+        type: 'message',
+        message: { userId: 'user_12345' },
+      },
+    } as any;
+    
+    await ignoreBots(context, next);
+    
+    expect(next).toHaveBeenCalled();
+  });
+});
+```
+
+<Warning>
+The middleware system is currently planned for Phase 5 of development. The type definitions shown here are available in `@aarekaz/switchboard-core`, but the implementation to use middleware with your bot is not yet available.
+</Warning>
+
+## Next steps
+
+- Learn about [custom adapters](/advanced/custom-adapters) to add new platforms
+- Read the [contributing guide](/advanced/contributing) to help build the middleware system

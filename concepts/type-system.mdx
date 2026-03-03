@@ -1,0 +1,454 @@
+---
+title: Type system
+description: Understanding UnifiedMessage, UnifiedEvent, and Switchboard's type system design
+---
+
+Switchboard's type system is designed to provide a consistent, type-safe interface across all chat platforms. This page explains the core types and design decisions.
+
+## Core type abstractions
+
+### UnifiedMessage
+
+`UnifiedMessage` is the fundamental abstraction representing a message across all platforms:
+
+```typescript
+// From packages/core/src/types/message.ts
+export interface UnifiedMessage {
+  // Core identifiers
+  id: string;              // Platform-specific message ID
+  channelId: string;       // Channel/room/conversation ID
+  userId: string;          // Sender's user ID
+
+  // Content
+  text: string;            // Plain text content
+
+  // Metadata
+  timestamp: Date;         // When the message was sent
+  threadId?: string;       // Thread/reply chain ID (optional)
+
+  // Attachments
+  attachments?: Attachment[];  // Files, images, etc.
+
+  // Context
+  platform: PlatformType;  // Which platform this is from
+
+  // Escape hatch
+  _raw: unknown;           // Original platform message object
+}
+```
+
+#### Why these fields?
+
+Every field in `UnifiedMessage` exists across all supported platforms:
+
+| Field | Discord | Slack | Teams | Google Chat |
+|-------|---------|-------|-------|-------------|
+| `id` | Message ID | `ts` | Activity ID | Message name |
+| `channelId` | Channel ID | Channel ID | Conversation ID | Space name |
+| `userId` | User ID | User ID | From ID | User name |
+| `text` | Content | Text | Text | Text |
+| `timestamp` | Timestamp | `ts` | Timestamp | Create time |
+| `threadId` | Thread ID | `thread_ts` | Reply to ID | Thread key |
+
+<Tip>
+The `_raw` field provides access to the original platform message for platform-specific features not covered by the unified type.
+</Tip>
+
+### Attachment
+
+File attachments are normalized across platforms:
+
+```typescript
+export interface Attachment {
+  id: string;          // Attachment ID
+  filename: string;    // File name
+  url: string;         // Download URL
+  mimeType: string;    // MIME type (e.g., 'image/png')
+  size: number;        // File size in bytes
+}
+```
+
+Example usage:
+
+```typescript
+bot.onMessage(async (ctx) => {
+  if (ctx.message.attachments && ctx.message.attachments.length > 0) {
+    for (const attachment of ctx.message.attachments) {
+      console.log(`File: ${attachment.filename} (${attachment.mimeType})`);
+      console.log(`URL: ${attachment.url}`);
+    }
+  }
+});
+```
+
+## UnifiedEvent
+
+`UnifiedEvent` is a discriminated union of all possible events:
+
+```typescript
+// From packages/core/src/types/event.ts
+export type UnifiedEvent =
+  | MessageEvent
+  | ReactionEvent
+  | UserJoinedEvent
+  | UserLeftEvent
+  | ChannelCreatedEvent
+  | ChannelDeletedEvent;
+```
+
+### Event types
+
+#### MessageEvent
+
+```typescript
+export interface MessageEvent {
+  type: 'message';
+  message: UnifiedMessage;
+}
+```
+
+Fired when a message is received.
+
+#### ReactionEvent
+
+```typescript
+export interface ReactionEvent {
+  type: 'reaction';
+  messageId: string;       // Message that was reacted to
+  userId: string;          // User who added/removed the reaction
+  emoji: string;           // Emoji (e.g., '👍', 'tada')
+  action: 'added' | 'removed';  // Was it added or removed?
+}
+```
+
+Fired when a reaction is added or removed.
+
+#### UserJoinedEvent / UserLeftEvent
+
+```typescript
+export interface UserJoinedEvent {
+  type: 'user_joined';
+  channelId: string;
+  userId: string;
+}
+
+export interface UserLeftEvent {
+  type: 'user_left';
+  channelId: string;
+  userId: string;
+}
+```
+
+Fired when users join or leave channels.
+
+#### ChannelCreatedEvent / ChannelDeletedEvent
+
+```typescript
+export interface ChannelCreatedEvent {
+  type: 'channel_created';
+  channelId: string;
+  channelName: string;
+}
+
+export interface ChannelDeletedEvent {
+  type: 'channel_deleted';
+  channelId: string;
+}
+```
+
+Fired when channels are created or deleted.
+
+### Discriminated unions
+
+`UnifiedEvent` is a discriminated union, which enables type narrowing:
+
+```typescript
+bot.onEvent(async (event) => {
+  if (event.type === 'message') {
+    // TypeScript knows event is MessageEvent
+    console.log(event.message.text);
+    //               ^? UnifiedMessage
+  }
+  
+  if (event.type === 'reaction') {
+    // TypeScript knows event is ReactionEvent
+    console.log(event.emoji);
+    //               ^? string
+  }
+});
+```
+
+<Note>
+TypeScript automatically narrows the type based on the `type` field, giving you full type safety.
+</Note>
+
+## MessageRef type
+
+`MessageRef` is a flexible type for referencing messages:
+
+```typescript
+// From packages/core/src/types/message.ts
+export type MessageRef = string | UnifiedMessage;
+```
+
+### Why MessageRef exists
+
+Different platforms have different requirements for message operations:
+
+- **Discord**: Only needs the message ID (snowflake)
+- **Slack**: Needs both channel ID and timestamp (`ts`)
+
+By accepting both string IDs and full `UnifiedMessage` objects, we provide flexibility:
+
+```typescript
+// Works everywhere: Pass the full message
+bot.onMessage(async (ctx) => {
+  await bot.editMessage(ctx.message, 'Updated text');
+});
+
+// Works on Discord, works on Slack if cached
+await bot.editMessage('1234567890', 'Updated text');
+```
+
+<Warning>
+For guaranteed cross-platform compatibility, prefer passing the full `UnifiedMessage` object over string IDs.
+</Warning>
+
+### How adapters handle MessageRef
+
+Adapters convert `MessageRef` to platform-specific references:
+
+```typescript
+// Discord adapter
+if (typeof messageRef === 'string') {
+  messageId = messageRef;  // ID is enough
+} else {
+  messageId = messageRef.id;
+}
+
+// Slack adapter
+if (typeof messageRef === 'string') {
+  // Try to find in cache
+  const cached = this.messageCache.get(messageRef);
+  if (cached) {
+    channel = cached.channelId;
+    ts = cached.id;
+  } else {
+    throw new Error('Message not found in cache');
+  }
+} else {
+  channel = messageRef.channelId;
+  ts = messageRef.id;
+}
+```
+
+## SendMessageOptions
+
+Platform-specific options are typed using discriminated properties:
+
+```typescript
+export interface SendMessageOptions {
+  threadId?: string;  // Common across all platforms
+  
+  // Platform-specific options (opt-in)
+  discord?: {
+    embeds?: unknown[];
+    components?: unknown[];
+  };
+  
+  slack?: {
+    blocks?: unknown[];
+    unfurl_links?: boolean;
+    unfurl_media?: boolean;
+  };
+  
+  teams?: {
+    attachments?: unknown[];
+  };
+  
+  googleChat?: {
+    cards?: unknown[];
+  };
+}
+```
+
+Usage:
+
+```typescript
+// Common options work everywhere
+await bot.sendMessage(channelId, 'Hello', { threadId: 'thread-123' });
+
+// Platform-specific options are opt-in
+await bot.sendMessage(channelId, 'Hello', {
+  discord: {
+    embeds: [{ title: 'Title', description: 'Description' }]
+  }
+});
+```
+
+<Tip>
+Platform-specific options are ignored on other platforms, so it's safe to include them conditionally.
+</Tip>
+
+## Result type
+
+Switchboard uses a Rust-inspired `Result` type for explicit error handling:
+
+```typescript
+// From packages/core/src/types/result.ts
+export type Result<T, E = Error> =
+  | { ok: true; value: T }
+  | { ok: false; error: E };
+```
+
+See [Error handling](/concepts/error-handling) for details.
+
+## Type safety levels
+
+Switchboard provides progressive type safety:
+
+### Level 1: Basic type safety (default)
+
+```typescript
+const bot = createBot({ platform: 'discord' });
+//    ^? Bot
+
+const result = await bot.sendMessage('channel-id', 'Hello');
+//    ^? Result<UnifiedMessage>
+
+if (result.ok) {
+  console.log(result.value.id);
+  //                  ^? string
+}
+```
+
+### Level 2: Platform-specific options
+
+```typescript
+await bot.sendMessage('channel-id', 'Hello', {
+  discord: {
+    embeds: [{ title: 'Test' }]  // Type-checked
+    //         ^? { title: string, ... }
+  }
+});
+```
+
+### Level 3: Event type narrowing
+
+```typescript
+bot.onEvent(async (event) => {
+  if (event.type === 'message') {
+    // event is narrowed to MessageEvent
+    const text = event.message.text;
+    //                 ^? string
+  }
+});
+```
+
+## Supporting types
+
+### Channel
+
+```typescript
+export interface Channel {
+  id: string;
+  name: string;
+  type: 'text' | 'voice' | 'dm' | 'group';
+}
+```
+
+### User
+
+```typescript
+export interface User {
+  id: string;
+  username: string;
+  displayName?: string;
+  isBot: boolean;
+}
+```
+
+### PlatformType
+
+```typescript
+export type PlatformType =
+  | 'discord'
+  | 'slack'
+  | 'teams'
+  | 'google-chat'
+  | string;  // Allow custom platforms
+```
+
+<Note>
+The `string` fallback allows custom platform adapters to use their own platform identifiers.
+</Note>
+
+## Design decisions
+
+### Why not platform-specific types in core?
+
+We deliberately avoid exposing platform-specific types (like `DiscordEmbed` or `SlackBlock`) in the core type system:
+
+```typescript
+// ❌ Bad: Couples core to Discord
+export interface SendMessageOptions {
+  embeds?: DiscordEmbed[];  // Now core depends on Discord types
+}
+
+// ✅ Good: Platform options are opt-in and loosely typed
+export interface SendMessageOptions {
+  discord?: {
+    embeds?: unknown[];  // Adapters handle the typing
+  };
+}
+```
+
+This keeps the core platform-agnostic and tree-shakeable.
+
+### Why Date instead of timestamp strings?
+
+```typescript
+timestamp: Date;  // Not string or number
+```
+
+Benefits:
+- Type-safe date operations
+- No timezone confusion
+- Works with date libraries (date-fns, dayjs)
+
+Adapters convert platform timestamps to `Date` objects:
+
+```typescript
+// Discord: Convert snowflake timestamp
+timestamp: new Date(message.timestamp)
+
+// Slack: Convert Unix timestamp
+timestamp: new Date(parseFloat(message.ts) * 1000)
+```
+
+### Why _raw field?
+
+The `_raw` field provides an escape hatch for platform-specific features:
+
+```typescript
+bot.onMessage(async (ctx) => {
+  // Use unified API
+  console.log(ctx.message.text);
+  
+  // Access platform-specific data when needed
+  if (ctx.platform === 'discord') {
+    const raw = ctx.message._raw as DiscordMessage;
+    console.log(raw.embeds);
+  }
+});
+```
+
+<Warning>
+Using `_raw` reduces portability. Only use it when the unified API doesn't cover your use case.
+</Warning>
+
+## Next steps
+
+- Learn about [Error handling](/concepts/error-handling)
+- Understand [Platform adapters](/concepts/platform-adapters)
+- Read the [Architecture](/concepts/architecture) overview

@@ -1,0 +1,219 @@
+---
+title: Error types
+description: Type definitions for all error classes in Switchboard SDK
+---
+
+## SwitchboardError
+
+Base error class for all Switchboard errors. All specific error types extend this class.
+
+```typescript
+class SwitchboardError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly platform?: PlatformType
+  )
+}
+```
+
+<ResponseField name="message" type="string" required>
+  Error message describing what went wrong
+</ResponseField>
+
+<ResponseField name="code" type="string" required>
+  Error code for programmatic error handling
+</ResponseField>
+
+<ResponseField name="platform" type="PlatformType">
+  Platform where the error occurred (if applicable)
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Error name (always 'SwitchboardError' for base class)
+</ResponseField>
+
+## AdapterNotFoundError
+
+Error thrown when no adapter is found for a platform.
+
+```typescript
+class AdapterNotFoundError extends SwitchboardError {
+  constructor(platform: PlatformType)
+}
+```
+
+**Error code**: `ADAPTER_NOT_FOUND`
+
+**Example message**: `No adapter found for platform: discord. Did you import @aarekaz/switchboard-discord?`
+
+<ResponseField name="platform" type="PlatformType" required>
+  The platform that has no adapter registered
+</ResponseField>
+
+## ConnectionError
+
+Error thrown when connection to a platform fails.
+
+```typescript
+class ConnectionError extends SwitchboardError {
+  constructor(platform: PlatformType, cause: unknown)
+}
+```
+
+**Error code**: `CONNECTION_ERROR`
+
+**Example message**: `Failed to connect to discord: Invalid token`
+
+<ResponseField name="platform" type="PlatformType" required>
+  The platform that failed to connect
+</ResponseField>
+
+<ResponseField name="cause" type="unknown" required>
+  The underlying error that caused the connection failure
+</ResponseField>
+
+## MessageSendError
+
+Error thrown when sending a message fails.
+
+```typescript
+class MessageSendError extends SwitchboardError {
+  constructor(
+    platform: PlatformType,
+    channelId: string,
+    cause: unknown
+  )
+}
+```
+
+**Error code**: `MESSAGE_SEND_ERROR`
+
+**Example message**: `Failed to send message to channel 123456 on slack: Missing required scopes`
+
+<ResponseField name="platform" type="PlatformType" required>
+  The platform where the message send failed
+</ResponseField>
+
+<ResponseField name="channelId" type="string" required>
+  The channel ID where the message was being sent
+</ResponseField>
+
+<ResponseField name="cause" type="unknown" required>
+  The underlying error that caused the send failure
+</ResponseField>
+
+## MessageEditError
+
+Error thrown when editing a message fails.
+
+```typescript
+class MessageEditError extends SwitchboardError {
+  constructor(
+    platform: PlatformType,
+    messageId: string,
+    cause: unknown
+  )
+}
+```
+
+**Error code**: `MESSAGE_EDIT_ERROR`
+
+**Example message**: `Failed to edit message 789012 on discord: Message not found`
+
+<ResponseField name="platform" type="PlatformType" required>
+  The platform where the message edit failed
+</ResponseField>
+
+<ResponseField name="messageId" type="string" required>
+  The message ID that failed to be edited
+</ResponseField>
+
+<ResponseField name="cause" type="unknown" required>
+  The underlying error that caused the edit failure
+</ResponseField>
+
+## MessageDeleteError
+
+Error thrown when deleting a message fails.
+
+```typescript
+class MessageDeleteError extends SwitchboardError {
+  constructor(
+    platform: PlatformType,
+    messageId: string,
+    cause: unknown
+  )
+}
+```
+
+**Error code**: `MESSAGE_DELETE_ERROR`
+
+**Example message**: `Failed to delete message 345678 on slack: Insufficient permissions`
+
+<ResponseField name="platform" type="PlatformType" required>
+  The platform where the message deletion failed
+</ResponseField>
+
+<ResponseField name="messageId" type="string" required>
+  The message ID that failed to be deleted
+</ResponseField>
+
+<ResponseField name="cause" type="unknown" required>
+  The underlying error that caused the deletion failure
+</ResponseField>
+
+## ReactionError
+
+Error thrown when adding or removing a reaction fails.
+
+```typescript
+class ReactionError extends SwitchboardError {
+  constructor(
+    platform: PlatformType,
+    messageId: string,
+    emoji: string,
+    cause: unknown
+  )
+}
+```
+
+**Error code**: `REACTION_ERROR`
+
+**Example message**: `Failed to add/remove reaction 👍 on message 901234 (discord): Invalid emoji`
+
+<ResponseField name="platform" type="PlatformType" required>
+  The platform where the reaction operation failed
+</ResponseField>
+
+<ResponseField name="messageId" type="string" required>
+  The message ID where the reaction failed
+</ResponseField>
+
+<ResponseField name="emoji" type="string" required>
+  The emoji that failed to be added/removed
+</ResponseField>
+
+<ResponseField name="cause" type="unknown" required>
+  The underlying error that caused the reaction failure
+</ResponseField>
+
+## Error handling
+
+All Switchboard errors include:
+- A descriptive `message`
+- A programmatic `code` for error type identification
+- The `platform` where the error occurred (when applicable)
+- The original `cause` error for debugging
+
+```typescript Example error handling
+try {
+  await bot.sendMessage('channel-id', 'Hello!');
+} catch (error) {
+  if (error instanceof MessageSendError) {
+    console.error(`Failed to send on ${error.platform}: ${error.message}`);
+    console.error('Error code:', error.code);
+    console.error('Original error:', error.cause);
+  }
+}
+```

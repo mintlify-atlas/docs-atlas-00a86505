@@ -1,0 +1,220 @@
+---
+title: Message types
+description: Type definitions for messages, attachments, and message operations
+---
+
+## UnifiedMessage
+
+The core message abstraction that normalizes messages across all platforms.
+
+```typescript
+interface UnifiedMessage {
+  id: string;
+  channelId: string;
+  userId: string;
+  text: string;
+  timestamp: Date;
+  threadId?: string;
+  attachments?: Attachment[];
+  platform: PlatformType;
+  _raw: unknown;
+}
+```
+
+<ResponseField name="id" type="string" required>
+  Platform-specific message ID
+</ResponseField>
+
+<ResponseField name="channelId" type="string" required>
+  Channel/room/conversation ID where the message was sent
+</ResponseField>
+
+<ResponseField name="userId" type="string" required>
+  User ID of the message sender
+</ResponseField>
+
+<ResponseField name="text" type="string" required>
+  Plain text content of the message
+</ResponseField>
+
+<ResponseField name="timestamp" type="Date" required>
+  When the message was sent
+</ResponseField>
+
+<ResponseField name="threadId" type="string">
+  Thread/reply chain ID (if this message is part of a thread)
+</ResponseField>
+
+<ResponseField name="attachments" type="Attachment[]">
+  File attachments (images, files, etc.)
+</ResponseField>
+
+<ResponseField name="platform" type="PlatformType" required>
+  Which platform this message is from
+</ResponseField>
+
+<ResponseField name="_raw" type="unknown" required>
+  Original platform message object (for accessing platform-specific fields)
+</ResponseField>
+
+## MessageRef
+
+Reference to a message - can be either a message ID string or a full UnifiedMessage object.
+
+```typescript
+type MessageRef = string | UnifiedMessage;
+```
+
+### Why this exists
+
+Different platforms have different requirements for message operations:
+- **Discord**: Only needs message ID for edit/delete/react operations
+- **Slack**: Needs both channel ID and message timestamp (ts)
+
+### Usage recommendations
+
+- Passing `UnifiedMessage` works reliably on ALL platforms
+- Passing string ID works on Discord, works on Slack if message is in cache (95% of cases)
+
+### Platform notes
+
+- **Discord**: String IDs always work
+- **Slack**: String IDs work if the message was seen by the bot in the last hour. For guaranteed reliability, pass the full message object.
+
+<CodeGroup>
+```typescript Recommended approach
+// Works everywhere, always
+bot.onMessage(async (message) => {
+  await bot.editMessage(message, 'Updated text');
+  await bot.addReaction(message, 'thumbsup');
+});
+```
+
+```typescript Using string IDs
+// Works on Discord, works on Slack if cached
+await bot.editMessage(message.id, 'Updated text');
+```
+</CodeGroup>
+
+## Attachment
+
+File attachment representation.
+
+```typescript
+interface Attachment {
+  id: string;
+  filename: string;
+  url: string;
+  mimeType: string;
+  size: number;
+}
+```
+
+<ResponseField name="id" type="string" required>
+  Attachment ID
+</ResponseField>
+
+<ResponseField name="filename" type="string" required>
+  File name
+</ResponseField>
+
+<ResponseField name="url" type="string" required>
+  Download URL
+</ResponseField>
+
+<ResponseField name="mimeType" type="string" required>
+  MIME type (e.g., 'image/png')
+</ResponseField>
+
+<ResponseField name="size" type="number" required>
+  File size in bytes
+</ResponseField>
+
+## SendMessageOptions
+
+Options for sending messages.
+
+```typescript
+interface SendMessageOptions {
+  threadId?: string;
+  discord?: {
+    embeds?: unknown[];
+    components?: unknown[];
+  };
+  slack?: {
+    blocks?: unknown[];
+    unfurl_links?: boolean;
+    unfurl_media?: boolean;
+  };
+  teams?: {
+    attachments?: unknown[];
+  };
+  googleChat?: {
+    cards?: unknown[];
+  };
+}
+```
+
+<ResponseField name="threadId" type="string">
+  Send message in a specific thread
+</ResponseField>
+
+<Expandable title="discord" defaultOpen={false}>
+  <ResponseField name="embeds" type="unknown[]">
+    Discord embeds array
+  </ResponseField>
+  
+  <ResponseField name="components" type="unknown[]">
+    Discord components array (buttons, select menus, etc.)
+  </ResponseField>
+</Expandable>
+
+<Expandable title="slack" defaultOpen={false}>
+  <ResponseField name="blocks" type="unknown[]">
+    Slack Block Kit blocks
+  </ResponseField>
+  
+  <ResponseField name="unfurl_links" type="boolean">
+    Enable link unfurling
+  </ResponseField>
+  
+  <ResponseField name="unfurl_media" type="boolean">
+    Enable media unfurling
+  </ResponseField>
+</Expandable>
+
+<Expandable title="teams" defaultOpen={false}>
+  <ResponseField name="attachments" type="unknown[]">
+    Microsoft Teams attachments
+  </ResponseField>
+</Expandable>
+
+<Expandable title="googleChat" defaultOpen={false}>
+  <ResponseField name="cards" type="unknown[]">
+    Google Chat cards
+  </ResponseField>
+</Expandable>
+
+## UploadOptions
+
+Options for uploading files.
+
+```typescript
+interface UploadOptions {
+  filename?: string;
+  comment?: string;
+  threadId?: string;
+}
+```
+
+<ResponseField name="filename" type="string">
+  File name (if not provided in the File object)
+</ResponseField>
+
+<ResponseField name="comment" type="string">
+  Optional comment/message to send with the file
+</ResponseField>
+
+<ResponseField name="threadId" type="string">
+  Send file in a specific thread
+</ResponseField>

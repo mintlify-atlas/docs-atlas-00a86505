@@ -1,0 +1,55 @@
+---
+title: Channel types
+description: Type definitions for channels and channel operations
+---
+
+## Channel
+
+Unified channel representation across all platforms.
+
+```typescript
+interface Channel {
+  id: string;
+  name: string;
+  type: ChannelType;
+  isPrivate: boolean;
+  topic?: string;
+}
+```
+
+<ResponseField name="id" type="string" required>
+  Channel ID
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Channel name
+</ResponseField>
+
+<ResponseField name="type" type="ChannelType" required>
+  Channel type (text, voice, dm, etc.)
+</ResponseField>
+
+<ResponseField name="isPrivate" type="boolean" required>
+  Whether the channel is private/restricted
+</ResponseField>
+
+<ResponseField name="topic" type="string">
+  Channel topic/description (if applicable)
+</ResponseField>
+
+## ChannelType
+
+Enum-like type for different channel types.
+
+```typescript
+type ChannelType = 'text' | 'voice' | 'dm' | 'group_dm' | 'category' | 'unknown';
+```
+
+### Values
+
+- `'text'` - Text-based channel
+- `'voice'` - Voice channel
+- `'dm'` - Direct message (1-on-1)
+- `'group_dm'` - Group direct message
+- `'category'` - Channel category/folder
+- `'unknown'` - Unknown or unsupported channel type

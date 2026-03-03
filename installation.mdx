@@ -1,0 +1,235 @@
+---
+title: Installation
+description: Install Switchboard SDK and get started building cross-platform chat bots
+---
+
+# Installation
+
+Switchboard is distributed as a single package that includes all platform adapters. Install it using your preferred package manager.
+
+## Install the SDK
+
+<CodeGroup>
+
+```bash npm
+npm install @aarekaz/switchboard
+```
+
+```bash yarn
+yarn add @aarekaz/switchboard
+```
+
+```bash pnpm
+pnpm add @aarekaz/switchboard
+```
+
+</CodeGroup>
+
+## Requirements
+
+Switchboard has minimal requirements:
+
+- **Node.js** - Version 18.0.0 or higher
+- **Package manager** - npm, yarn, or pnpm (pnpm 8.0.0+ recommended)
+- **TypeScript** - Optional but recommended for full type safety
+
+<Note>
+  Switchboard is built with TypeScript and provides first-class type definitions. You don't need to install separate `@types` packages.
+</Note>
+
+## Platform adapters
+
+Switchboard uses a side-effect import pattern to load platform adapters. This keeps your bundle size small by only including the platforms you use.
+
+### Available platforms
+
+Currently supported platforms:
+
+- **Discord** - `@aarekaz/switchboard/discord`
+- **Slack** - `@aarekaz/switchboard/slack`
+
+<Tip>
+  Support for Microsoft Teams and Google Chat is coming soon. The adapter architecture makes it easy to add new platforms.
+</Tip>
+
+### How adapter imports work
+
+When you import a platform adapter, it automatically registers itself with the Switchboard core:
+
+```typescript
+import { createBot } from '@aarekaz/switchboard';
+import '@aarekaz/switchboard/discord'; // Registers Discord adapter
+
+// Now you can create Discord bots
+const bot = createBot({
+  platform: 'discord',
+  credentials: { token: process.env.DISCORD_TOKEN },
+});
+```
+
+You can import multiple adapters in the same project:
+
+```typescript
+import '@aarekaz/switchboard/discord';
+import '@aarekaz/switchboard/slack';
+
+// Switch platforms at runtime
+const platform = process.env.PLATFORM === 'slack' ? 'slack' : 'discord';
+const bot = createBot({ platform, credentials: getCredentials(platform) });
+```
+
+## Environment setup
+
+Switchboard doesn't require any environment configuration, but you'll need credentials for the platforms you want to use.
+
+### Discord setup
+
+<Steps>
+  <Step title="Create a Discord application">
+    Go to the [Discord Developer Portal](https://discord.com/developers/applications) and create a new application.
+  </Step>
+  
+  <Step title="Create a bot user">
+    In your application settings, go to the "Bot" section and click "Add Bot".
+  </Step>
+  
+  <Step title="Get your bot token">
+    Copy the bot token from the Bot settings page. Store it securely in an environment variable:
+    
+    ```bash
+    DISCORD_TOKEN=your_bot_token_here
+    ```
+  </Step>
+  
+  <Step title="Enable necessary intents">
+    In the Bot settings, enable the following intents:
+    - Message Content Intent (required to read message text)
+    - Server Members Intent (optional, for user information)
+  </Step>
+  
+  <Step title="Invite the bot to your server">
+    In OAuth2 > URL Generator, select:
+    - Scopes: `bot`
+    - Permissions: At minimum, select "Send Messages" and "Read Messages/View Channels"
+    
+    Use the generated URL to invite your bot to a server.
+  </Step>
+</Steps>
+
+### Slack setup
+
+<Steps>
+  <Step title="Create a Slack app">
+    Go to the [Slack API Dashboard](https://api.slack.com/apps) and create a new app "From scratch".
+  </Step>
+  
+  <Step title="Enable Socket Mode">
+    In your app settings, go to "Socket Mode" and enable it. This allows your bot to receive events without a public URL.
+  </Step>
+  
+  <Step title="Generate an App-Level Token">
+    In Socket Mode settings, generate an app-level token with the `connections:write` scope. Store it as:
+    
+    ```bash
+    SLACK_APP_TOKEN=xapp-your-app-token
+    ```
+  </Step>
+  
+  <Step title="Add bot scopes">
+    Go to "OAuth & Permissions" and add these Bot Token Scopes:
+    - `chat:write` - Send messages
+    - `channels:history` - Read messages in public channels
+    - `groups:history` - Read messages in private channels
+    - `im:history` - Read direct messages
+    - `app_mentions:read` - Receive mentions
+  </Step>
+  
+  <Step title="Install the app to your workspace">
+    Click "Install to Workspace" and authorize the bot. Copy the Bot User OAuth Token:
+    
+    ```bash
+    SLACK_BOT_TOKEN=xoxb-your-bot-token
+    ```
+  </Step>
+  
+  <Step title="Subscribe to bot events">
+    Go to "Event Subscriptions" and subscribe to these bot events:
+    - `message.channels`
+    - `message.groups`
+    - `message.im`
+    - `app_mention`
+  </Step>
+</Steps>
+
+## Using environment variables
+
+Create a `.env` file in your project root to store credentials:
+
+```bash .env
+# Discord
+DISCORD_TOKEN=your_discord_token
+
+# Slack
+SLACK_BOT_TOKEN=xoxb-your-slack-bot-token
+SLACK_APP_TOKEN=xapp-your-slack-app-token
+```
+
+Load environment variables using a package like `dotenv`:
+
+<CodeGroup>
+
+```bash npm
+npm install dotenv
+```
+
+```bash yarn
+yarn add dotenv
+```
+
+```bash pnpm
+pnpm add dotenv
+```
+
+</CodeGroup>
+
+Then import it at the top of your bot file:
+
+```typescript
+import 'dotenv/config';
+import { createBot } from '@aarekaz/switchboard';
+```
+
+<Note>
+  Never commit your `.env` file to version control. Add it to your `.gitignore` file.
+</Note>
+
+## Verify installation
+
+Create a simple test file to verify everything is working:
+
+```typescript test.ts
+import { createBot } from '@aarekaz/switchboard';
+import '@aarekaz/switchboard/discord';
+
+const bot = createBot({
+  platform: 'discord',
+  credentials: { token: 'test' },
+});
+
+console.log('Switchboard installed successfully!');
+console.log('Platform:', bot.platform);
+```
+
+Run it:
+
+```bash
+npx tsx test.ts
+```
+
+If you see the success message, you're ready to build bots!
+
+## Next steps
+
+<Card title="Quickstart" icon="rocket" href="/quickstart">
+  Build your first bot in 5 minutes
+</Card>
